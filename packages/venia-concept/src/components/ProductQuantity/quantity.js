@@ -1,41 +1,86 @@
-import React, { Component } from 'react';
+import React from 'react';
 import { arrayOf, number, shape, string } from 'prop-types';
 
 import classify from 'src/classify';
-import Select from 'src/components/Select';
-import mockData from './mockData';
 import defaultClasses from './quantity.css';
 
-class Quantity extends Component {
-    static propTypes = {
-        classes: shape({
-            root: string
-        }),
-        items: arrayOf(
-            shape({
-                value: number
-            })
-        )
+// added by narendra
+import { Text } from 'informed';
+import Icon from 'src/components/Icon';
+import WifiIcon from 'react-feather/dist/icons/wifi';
+import { useToasts } from '@magento/peregrine';
+
+const dismissers = new WeakMap();
+
+// Memoize dismisser funcs to reduce re-renders from func identity change.
+const getErrorDismisser = (error, onDismissError) => {
+    return dismissers.has(error)
+        ? dismissers.get(error)
+        : dismissers.set(error, () => onDismissError(error)).get(error);
+};
+
+const Quantity = props => {
+    const { classes, ...restProps } = props;
+    const [{ toasts }, { addToast }] = useToasts();
+    const OnlineIcon = <Icon src={WifiIcon} attrs={{ width: 18 }} />;
+
+    // const classes = mergeClasses(defaultClasses, props.classes);
+
+    console.log(defaultClasses);
+    const showToast = toastMessage => {
+        if (toastMessage) {
+            addToast({
+                type: 'error',
+                icon: OnlineIcon,
+                message: toastMessage,
+                timeout: 5000,
+                onDismiss: remove => {
+                    remove();
+                }
+            });
+        }
     };
 
-    static defaultProps = {
-        selectLabel: "product's quantity"
+    const validateQuantity = value => {
+        var validateRegex = /^[1-9]\d*(\.\d+)?$/;
+        const finalVal =
+            value <= 0
+                ? 'Please enter a quantity greater than 0.'
+                : value == undefined || !validateRegex.test(value)
+                ? 'Please enter a valid number in this field.'
+                : undefined;
+        if (finalVal) {
+            showToast(finalVal);
+        }
+        return finalVal;
     };
-
-    render() {
-        const { classes, selectLabel, ...restProps } = this.props;
-
-        return (
-            <div className={classes.root}>
-                <Select
+    return (
+        <div className={classes.root}>
+            <label htmlFor="quantity">
+                <Text
                     {...restProps}
+                    id="quantity"
+                    type="number"
                     field="quantity"
-                    aria-label={selectLabel}
-                    items={mockData}
+                    validateOnChange
+                    validate={validateQuantity}
+                    className={classes.quantityField}
                 />
-            </div>
-        );
-    }
-}
+            </label>
+        </div>
+    );
+};
+
+Quantity.propTypes = {
+    classes: shape({
+        root: string,
+        quantityField: string
+    }),
+    items: arrayOf(
+        shape({
+            value: number
+        })
+    )
+};
 
 export default classify(defaultClasses)(Quantity);
