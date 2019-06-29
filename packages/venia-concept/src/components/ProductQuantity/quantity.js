@@ -10,23 +10,12 @@ import Icon from 'src/components/Icon';
 import WifiIcon from 'react-feather/dist/icons/wifi';
 import { useToasts } from '@magento/peregrine';
 
-const dismissers = new WeakMap();
-
-// Memoize dismisser funcs to reduce re-renders from func identity change.
-const getErrorDismisser = (error, onDismissError) => {
-    return dismissers.has(error)
-        ? dismissers.get(error)
-        : dismissers.set(error, () => onDismissError(error)).get(error);
-};
-
 const Quantity = props => {
     const { classes, ...restProps } = props;
     const [{ toasts }, { addToast }] = useToasts();
     const OnlineIcon = <Icon src={WifiIcon} attrs={{ width: 18 }} />;
 
-    // const classes = mergeClasses(defaultClasses, props.classes);
-
-    console.log(defaultClasses);
+    console.log(toasts);
     const showToast = toastMessage => {
         if (toastMessage) {
             addToast({
