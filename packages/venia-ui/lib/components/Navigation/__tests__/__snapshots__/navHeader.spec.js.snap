@@ -2,14 +2,13 @@
 
 exports[`renders correctly 1`] = `
 Array [
-  <i />,
-  <h2
+  "<Trigger>",
+  <span
     className="title"
   >
     <span>
       Main Menu
     </span>
-  </h2>,
-  <i />,
+  </span>,
 ]
 `;

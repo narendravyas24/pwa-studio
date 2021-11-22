@@ -4,56 +4,31 @@ exports[`renders Option component correctly 1`] = `
 <div
   className="root"
 >
-  <h3
+  <span
     className="title"
   >
-    <span>
-      Color
-    </span>
-  </h3>
-  <div
-    className="root"
+    Foo
+  </span>
+  <i />
+  <dl
+    className="selection"
   >
-    <div
-      className="root"
+    <dt
+      className="selectionLabel"
     >
-      <button
-        aria-describedby="00000000-0000-0000-0000-000000000000"
-        className="root"
-        onBlur={[Function]}
-        onClick={[Function]}
-        onFocus={[Function]}
-        onKeyDown={[Function]}
-        onMouseLeave={[Function]}
-        onMouseOver={[Function]}
-        style={
+      <mock-FormattedMessage
+        defaultMessage="Selected Foo:"
+        id="productOptions.selectedLabel"
+        values={
           Object {
-            "--venia-swatch-bg": "123,123,123",
+            "label": "Foo",
           }
         }
-        title="red"
       />
-    </div>
-    <div
-      className="root"
-    >
-      <button
-        aria-describedby="00000000-0000-0000-0000-000000000000"
-        className="root"
-        onBlur={[Function]}
-        onClick={[Function]}
-        onFocus={[Function]}
-        onKeyDown={[Function]}
-        onMouseLeave={[Function]}
-        onMouseOver={[Function]}
-        style={
-          Object {
-            "--venia-swatch-bg": "123,123,123",
-          }
-        }
-        title="blue"
-      />
-    </div>
-  </div>
+    </dt>
+    <dd>
+      None
+    </dd>
+  </dl>
 </div>
 `;

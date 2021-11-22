@@ -1,84 +1,57 @@
-import React, { Fragment, Component } from 'react';
-import { string, func } from 'prop-types';
+import React, { Fragment } from 'react';
+import { FormattedMessage } from 'react-intl';
+import { string } from 'prop-types';
+import { useProduct } from '@magento/peregrine/lib/talons/RootComponents/Product/useProduct';
 
-import { connect, Query } from '@magento/venia-drivers';
+import ErrorView from '@magento/venia-ui/lib/components/ErrorView';
+import { StoreTitle, Meta } from '@magento/venia-ui/lib/components/Head';
+import ProductFullDetail from '@magento/venia-ui/lib/components/ProductFullDetail';
+import mapProduct from '@magento/venia-ui/lib/util/mapProduct';
+import ProductShimmer from './product.shimmer';
 
-import { Title } from '../../components/Head';
-import { addItemToCart } from '../../actions/cart';
-import ErrorView from '../../components/ErrorView';
-import { fullPageLoadingIndicator } from '../../components/LoadingIndicator';
-import ProductFullDetail from '../../components/ProductFullDetail';
-import getUrlKey from '../../util/getUrlKey';
-import productQuery from '../../queries/getProductDetail.graphql';
-
-/**
+/*
  * As of this writing, there is no single Product query type in the M2.3 schema.
  * The recommended solution is to use filter criteria on a Products query.
  * However, the `id` argument is not supported. See
  * https://github.com/magento/graphql-ce/issues/86
  * TODO: Replace with a single product query when possible.
  */
-class Product extends Component {
-    static propTypes = {
-        addItemToCart: func.isRequired,
-        cartId: string
-    };
 
-    addToCart = async (item, quantity) => {
-        const { addItemToCart, cartId } = this.props;
-        await addItemToCart({ cartId, item, quantity });
-    };
+const Product = props => {
+    const { __typename: productType } = props;
+    const talonProps = useProduct({
+        mapProduct
+    });
 
-    componentDidMount() {
-        window.scrollTo(0, 0);
-    }
+    const { error, loading, product } = talonProps;
 
-    // map Magento 2.3.1 schema changes to Venia 2.0.0 proptype shape to maintain backwards compatibility
-    mapProduct(product) {
-        const { description } = product;
-        return {
-            ...product,
-            description:
-                typeof description === 'object' ? description.html : description
-        };
-    }
-
-    render() {
+    if (loading && !product)
+        return <ProductShimmer productType={productType} />;
+    if (error && !product) return <ErrorView />;
+    if (!product) {
         return (
-            <Query
-                query={productQuery}
-                variables={{ urlKey: getUrlKey(), onServer: false }}
-            >
-                {({ loading, error, data }) => {
-                    if (error) return <div>Data Fetch Error</div>;
-                    if (loading) return fullPageLoadingIndicator;
-
-                    const product = data.productDetail.items[0];
-
-                    if (!product) {
-                        return <ErrorView outOfStock={true} />;
+            <h1>
+                <FormattedMessage
+                    id={'product.outOfStockTryAgain'}
+                    defaultMessage={
+                        'This Product is currently out of stock. Please try again later.'
                     }
-
-                    return (
-                        <Fragment>
-                            <Title>{`${product.name} - ${STORE_NAME}`}</Title>
-                            <ProductFullDetail
-                                product={this.mapProduct(product)}
-                                addToCart={this.props.addItemToCart}
-                            />
-                        </Fragment>
-                    );
-                }}
-            </Query>
+                />
+            </h1>
         );
     }
-}
 
-const mapDispatchToProps = {
-    addItemToCart
+    return (
+        <Fragment>
+            <StoreTitle>{product.name}</StoreTitle>
+            <Meta name="description" content={product.meta_description} />
+            <ProductFullDetail product={product} />
+        </Fragment>
+    );
 };
 
-export default connect(
-    null,
-    mapDispatchToProps
-)(Product);
+Product.propTypes = {
+    __typename: string.isRequired
+};
+
+export default Product;

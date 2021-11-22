@@ -1,21 +1,54 @@
-jest.mock('fs');
+jest.mock('pertain');
 jest.mock('pkg-dir');
 jest.mock('webpack-assets-manifest');
 jest.mock('../../Utilities/loadEnvironment');
 jest.mock('../plugins/RootComponentsPlugin');
 jest.mock('../PWADevServer');
 
+jest.mock('../../BuildBus/declare-base');
+
+const path = require('path');
 const fs = require('fs');
+const stat = jest.spyOn(fs, 'stat');
+
+const { SyncHook } = require('tapable');
+const declareBase = require('../../BuildBus/declare-base');
+const pertain = require('pertain');
 const pkgDir = require('pkg-dir');
 const WebpackAssetsManifest = require('webpack-assets-manifest');
 const RootComponentsPlugin = require('../plugins/RootComponentsPlugin');
 const loadEnvironment = require('../../Utilities/loadEnvironment');
 const configureWebpack = require('../configureWebpack');
+const BuildBus = require('../../BuildBus');
 
+pertain.mockImplementation((_, subject) => [
+    {
+        name: '@magento/pwa-buildpack',
+        path: `./${subject.split('.').pop()}-base`
+    }
+]);
 pkgDir.mockImplementation(x => x);
 
+const specialFeaturesHook = new SyncHook(['special']);
+const envVarDefsHook = new SyncHook(['envVarDefs']);
+const transformModulesHook = new SyncHook(['addTransform']);
+declareBase.mockImplementation(targets => {
+    targets.declare({
+        envVarDefinitions: envVarDefsHook,
+        specialFeatures: specialFeaturesHook,
+        webpackCompiler: new SyncHook(['compiler']),
+        transformModules: transformModulesHook
+    });
+});
+
+beforeEach(() => {
+    pertain.mockClear();
+    declareBase.mockClear();
+    BuildBus.clearAll();
+});
+
 const mockStat = (dir, file, err = null) => {
-    fs.stat.mockImplementationOnce((_, callback) =>
+    stat.mockImplementationOnce((_, callback) =>
         callback(err, { isDirectory: () => dir, isFile: () => file })
     );
 };
@@ -24,7 +57,14 @@ const mockEnv = prod =>
     loadEnvironment.mockReturnValueOnce({
         env: process.env,
         sections: jest.fn(),
-        section: jest.fn(),
+        section: jest.fn(
+            key =>
+                ({
+                    devServer: {
+                        serviceWorkerEnabled: !!prod
+                    }
+                }[key])
+        ),
         isProd: prod
     });
 
@@ -39,10 +79,6 @@ const simulate = {
     },
     statsAsMissing() {
         mockStat(false, false, new Error());
-        return this;
-    },
-    productionEnvironment() {
-        mockEnv(true);
         return this;
     },
     productionEnvironment() {
@@ -119,9 +155,12 @@ test('works in developer mode from cli', async () => {
         .statsAsDirectory()
         .statsAsMissing()
         .productionEnvironment();
-    await expect(
-        configureWebpack({ context: '.', env: { mode: 'development' } })
-    ).resolves.toHaveProperty('mode', 'development');
+    const clientConfig = await configureWebpack({
+        context: '.',
+        env: { mode: 'development' }
+    });
+
+    expect(clientConfig).toHaveProperty('mode', 'development');
 });
 
 test('works in developer mode from fallback', async () => {
@@ -129,10 +168,9 @@ test('works in developer mode from fallback', async () => {
         .statsAsDirectory()
         .statsAsMissing()
         .devEnvironment();
-    await expect(configureWebpack({ context: '.' })).resolves.toHaveProperty(
-        'mode',
-        'development'
-    );
+    const clientConfig = await configureWebpack({ context: '.' });
+
+    expect(clientConfig).toHaveProperty('mode', 'development');
 });
 
 test('errors when mode unrecognized', async () => {
@@ -145,41 +183,85 @@ test('errors when mode unrecognized', async () => {
     ).rejects.toThrowError('wuh');
 });
 
+test('errors when environment is invalid', async () => {
+    simulate.statsAsDirectory().statsAsMissing();
+    loadEnvironment.mockReturnValueOnce({
+        env: process.env,
+        envFilePresent: false,
+        error: new Error('Configuration foo was invalid')
+    });
+    await expect(
+        configureWebpack({ context: '.', env: { mode: 'development' } })
+    ).rejects.toThrowError('foo was invalid');
+});
+
 test('handles special flags', async () => {
     simulate
         .statsAsDirectory()
         .statsAsFile()
         .productionEnvironment();
 
-    const config = await configureWebpack({
-        context: '.',
-        vendor: ['jest'],
-        special: {
-            jest: {
-                esModules: true,
-                cssModules: true,
-                graphqlQueries: true,
-                rootComponents: true,
-                upward: true
-            },
-            'pkg-dir': {
-                esModules: true,
-                cssModules: true,
-                graphqlQueries: true,
-                rootComponents: false,
-                upward: true
-            }
+    const special = {
+        localModule1: {
+            esModules: true,
+            cssModules: true,
+            graphqlQueries: true,
+            rootComponents: true,
+            upward: true
+        },
+        depModule1: {
+            esModules: true,
+            cssModules: true,
+            graphqlQueries: true,
+            rootComponents: false,
+            upward: true
         }
+    };
+
+    // Tapable detects the argument length of the tap provided, so we need to
+    // declare at least one argument or Tapable won't give us anything.
+    const specialFeaturesTap = jest.fn(x => x);
+    specialFeaturesHook.tap('configureWebpack.spec.js', specialFeaturesTap);
+    const clientConfig = await configureWebpack({
+        context: path.resolve(__dirname, '__fixtures__/resolverContext'),
+        vendor: ['jest'],
+        special
     });
-    expect(
-        config.module.rules.find(({ use }) =>
-            use.some(({ loader }) => /^graphql\-tag/.test(loader))
-        ).include
-    ).toHaveLength(3);
+
+    const gqlLoader = ({ use }) =>
+        use.some(({ loader }) => /^graphql\-tag/.test(loader));
+    expect(clientConfig.module.rules.find(gqlLoader).include).toHaveLength(3);
+
     expect(RootComponentsPlugin).toHaveBeenCalled();
     expect(
         RootComponentsPlugin.mock.calls[0][0].rootComponentsDirs.some(entry =>
-            entry.includes('jest')
+            entry.includes('localModule1')
         )
     ).toBeTruthy();
+    expect(declareBase).toHaveBeenCalledTimes(1);
+    expect(specialFeaturesTap).toHaveBeenCalledWith(special);
+});
+
+test('accepts aliases', async () => {
+    simulate
+        .statsAsDirectory()
+        .statsAsFile()
+        .productionEnvironment();
+
+    await expect(
+        configureWebpack({
+            context: path.resolve(__dirname, '__fixtures__/resolverContext'),
+            alias: {
+                garner: 'bristow',
+                cooper: 'tippin'
+            }
+        })
+    ).resolves.toMatchObject({
+        resolve: {
+            alias: {
+                garner: 'bristow',
+                cooper: 'tippin'
+            }
+        }
+    });
 });

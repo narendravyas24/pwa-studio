@@ -1,38 +1,42 @@
-import React, { Component } from 'react';
+import React from 'react';
+import { FormattedMessage } from 'react-intl';
 import { bool, node, shape, string } from 'prop-types';
 
-import classify from '../../classify';
-import defaultClasses from './field.css';
+import { useStyle } from '../../classify';
+import defaultClasses from './field.module.css';
 
-class Field extends Component {
-    static propTypes = {
-        children: node,
-        classes: shape({
-            label: string,
-            root: string
-        }),
-        label: node,
-        required: bool
-    };
+const Field = props => {
+    const { children, id, label, optional } = props;
+    const classes = useStyle(defaultClasses, props.classes);
+    const optionalSymbol = optional ? (
+        <span className={classes.optional}>
+            <FormattedMessage
+                id={'field.optional'}
+                defaultMessage={'Optional'}
+            />
+        </span>
+    ) : null;
 
-    get requiredSymbol() {
-        const { classes, required } = this.props;
-        return required ? <span className={classes.requiredSymbol} /> : null;
-    }
+    return (
+        <div className={classes.root}>
+            <label className={classes.label} htmlFor={id}>
+                {label}
+                {optionalSymbol}
+            </label>
+            {children}
+        </div>
+    );
+};
 
-    render() {
-        const { children, classes, label } = this.props;
+Field.propTypes = {
+    children: node,
+    classes: shape({
+        label: string,
+        root: string
+    }),
+    id: string,
+    label: node,
+    optional: bool
+};
 
-        return (
-            <div className={classes.root}>
-                <span className={classes.label}>
-                    {this.requiredSymbol}
-                    {label}
-                </span>
-                {children}
-            </div>
-        );
-    }
-}
-
-export default classify(defaultClasses)(Field);
+export default Field;

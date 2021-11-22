@@ -1,22 +1,45 @@
-import React, { Component } from 'react';
-import { arrayOf, object, shape, string } from 'prop-types';
-import { List } from '@magento/peregrine';
-
-import classify from '../../classify';
+import React, { useMemo } from 'react';
+import { arrayOf, func, object, shape, string } from 'prop-types';
 import Tile from './tile';
-import defaultClasses from './tileList.css';
 
-class TileList extends Component {
-    static propTypes = {
-        classes: shape({
-            root: string
-        }),
-        items: arrayOf(object)
-    };
+import { useStyle } from '../../classify';
+import defaultClasses from './tileList.module.css';
 
-    render() {
-        return <List renderItem={Tile} {...this.props} />;
-    }
-}
+const TileList = props => {
+    const { getItemKey, selectedValue = {}, items, onSelectionChange } = props;
 
-export default classify(defaultClasses)(TileList);
+    const classes = useStyle(defaultClasses, props.classes);
+
+    const tiles = useMemo(
+        () =>
+            items.map(item => {
+                const isSelected = item.label === selectedValue.label;
+
+                return (
+                    <Tile
+                        key={getItemKey(item)}
+                        isSelected={isSelected}
+                        item={item}
+                        onClick={onSelectionChange}
+                    />
+                );
+            }),
+        [getItemKey, selectedValue.label, items, onSelectionChange]
+    );
+
+    return <div className={classes.root}>{tiles}</div>;
+};
+
+TileList.propTypes = {
+    classes: shape({
+        root: string
+    }),
+    getItemKey: func,
+    selectedValue: object,
+    items: arrayOf(object),
+    onSelectionChange: func
+};
+
+TileList.displayName = 'TileList';
+
+export default TileList;

@@ -1,36 +1,51 @@
-import React, { Component, Fragment } from 'react';
-import PropTypes from 'prop-types';
+import React from 'react';
+import { shape, string } from 'prop-types';
+import { Search as SearchIcon } from 'react-feather';
+import { useIntl } from 'react-intl';
 
-import classify from '../../classify';
-import defaultClasses from './searchTrigger.css';
+import Icon from '../Icon';
 
-class SearchTrigger extends Component {
-    static propTypes = {
-        children: PropTypes.node,
-        classes: PropTypes.shape({
-            root: PropTypes.string,
-            open: PropTypes.string
-        }),
-        searchOpen: PropTypes.bool,
-        toggleSearch: PropTypes.func.isRequired
-    };
+import { useStyle } from '../../classify';
+import defaultClasses from './searchTrigger.module.css';
+import { useSearchTrigger } from '@magento/peregrine/lib/talons/Header/useSearchTrigger';
 
-    render() {
-        const { children, classes, toggleSearch, searchOpen } = this.props;
-        const searchClass = searchOpen ? classes.open : classes.root;
+const SearchTrigger = React.forwardRef((props, ref) => {
+    const { active, onClick } = props;
 
-        return (
-            <Fragment>
-                <button
-                    className={searchClass}
-                    aria-label={'Search'}
-                    onClick={toggleSearch}
-                >
-                    {children}
-                </button>
-            </Fragment>
-        );
-    }
-}
+    const talonProps = useSearchTrigger({
+        onClick
+    });
+    const { handleClick } = talonProps;
+    const { formatMessage } = useIntl();
 
-export default classify(defaultClasses)(SearchTrigger);
+    const classes = useStyle(defaultClasses, props.classes);
+
+    const searchClass = active ? classes.open : classes.root;
+
+    const searchText = formatMessage({
+        id: 'searchTrigger.search',
+        defaultMessage: 'Search'
+    });
+
+    return (
+        <button
+            className={searchClass}
+            data-cy="SearchTrigger-button"
+            aria-label={searchText}
+            onClick={handleClick}
+            ref={ref}
+        >
+            <Icon src={SearchIcon} />
+            <span className={classes.label}>{searchText}</span>
+        </button>
+    );
+});
+
+SearchTrigger.propTypes = {
+    classes: shape({
+        root: string,
+        open: string
+    })
+};
+
+export default SearchTrigger;

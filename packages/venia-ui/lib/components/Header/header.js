@@ -1,98 +1,104 @@
-import React, { Suspense } from 'react';
-import { bool, func, object, shape, string } from 'prop-types';
-import { Menu as MenuIcon, Search as SearchIcon } from 'react-feather';
+import React, { Fragment, Suspense } from 'react';
+import { shape, string } from 'prop-types';
+import { Link, Route } from 'react-router-dom';
 
-import Icon from '../Icon';
 import Logo from '../Logo';
-import { Link, resourceUrl, Route } from '@magento/venia-drivers';
-
+import AccountTrigger from './accountTrigger';
 import CartTrigger from './cartTrigger';
 import NavTrigger from './navTrigger';
 import SearchTrigger from './searchTrigger';
-import OnlineIndicator from '../OnlineIndicator';
+import OnlineIndicator from './onlineIndicator';
+import { useHeader } from '@magento/peregrine/lib/talons/Header/useHeader';
+import resourceUrl from '@magento/peregrine/lib/util/makeUrl';
 
-import { mergeClasses } from '../../classify';
-import defaultClasses from './header.css';
+import { useStyle } from '../../classify';
+import defaultClasses from './header.module.css';
+import StoreSwitcher from './storeSwitcher';
+import CurrencySwitcher from './currencySwitcher';
+import MegaMenu from '../MegaMenu';
+import PageLoadingIndicator from '../PageLoadingIndicator';
 
 const SearchBar = React.lazy(() => import('../SearchBar'));
 
 const Header = props => {
     const {
-        cart,
-        getCartDetails,
+        handleSearchTriggerClick,
         hasBeenOffline,
         isOnline,
-        searchOpen,
-        toggleCart,
-        toggleSearch
-    } = props;
+        isSearchOpen,
+        searchRef,
+        searchTriggerRef
+    } = useHeader();
 
-    const cartTriggerProps = { cart, getCartDetails, toggleCart };
-    const classes = mergeClasses(defaultClasses, props.classes);
-    const rootClass = searchOpen ? classes.open : classes.closed;
-    const searchIcon = <Icon src={SearchIcon} />;
-    const suspenseFallback = (
-        <div className={classes.searchFallback}>
+    const classes = useStyle(defaultClasses, props.classes);
+    const rootClass = isSearchOpen ? classes.open : classes.closed;
+
+    const searchBarFallback = (
+        <div className={classes.searchFallback} ref={searchRef}>
             <div className={classes.input}>
                 <div className={classes.loader} />
             </div>
         </div>
     );
+    const searchBar = isSearchOpen ? (
+        <Suspense fallback={searchBarFallback}>
+            <Route>
+                <SearchBar isOpen={isSearchOpen} ref={searchRef} />
+            </Route>
+        </Suspense>
+    ) : null;
 
     return (
-        <header className={rootClass}>
-            <div className={classes.toolbar}>
-                <div className={classes.primaryActions}>
-                    <NavTrigger>
-                        <Icon src={MenuIcon} />
-                    </NavTrigger>
-                </div>
-                <OnlineIndicator
-                    hasBeenOffline={hasBeenOffline}
-                    isOnline={isOnline}
-                />
-                <Link to={resourceUrl('/')}>
-                    <Logo classes={{ logo: classes.logo }} />
-                </Link>
-                <div className={classes.secondaryActions}>
-                    <SearchTrigger
-                        searchOpen={searchOpen}
-                        toggleSearch={toggleSearch}
-                    >
-                        {searchIcon}
-                    </SearchTrigger>
-                    <CartTrigger {...cartTriggerProps} />
+        <Fragment>
+            <div className={classes.switchersContainer}>
+                <div className={classes.switchers}>
+                    <StoreSwitcher />
+                    <CurrencySwitcher />
                 </div>
             </div>
-            <Suspense fallback={searchOpen ? suspenseFallback : null}>
-                <Route
-                    render={({ history, location }) => (
-                        <SearchBar
-                            isOpen={searchOpen}
-                            history={history}
-                            location={location}
+            <header className={rootClass} data-cy="Header-root">
+                <div className={classes.toolbar}>
+                    <div className={classes.primaryActions}>
+                        <NavTrigger />
+                    </div>
+                    <OnlineIndicator
+                        hasBeenOffline={hasBeenOffline}
+                        isOnline={isOnline}
+                    />
+                    <Link
+                        to={resourceUrl('/')}
+                        className={classes.logoContainer}
+                    >
+                        <Logo classes={{ logo: classes.logo }} />
+                    </Link>
+                    <MegaMenu />
+                    <div className={classes.secondaryActions}>
+                        <SearchTrigger
+                            onClick={handleSearchTriggerClick}
+                            ref={searchTriggerRef}
                         />
-                    )}
-                />
-            </Suspense>
-        </header>
+                        <AccountTrigger />
+                        <CartTrigger />
+                    </div>
+                </div>
+                {searchBar}
+                <PageLoadingIndicator absolute />
+            </header>
+        </Fragment>
     );
 };
 
 Header.propTypes = {
-    cart: object,
     classes: shape({
         closed: string,
         logo: string,
         open: string,
         primaryActions: string,
         secondaryActions: string,
-        toolbar: string
-    }),
-    getCartDetails: func,
-    searchOpen: bool,
-    toggleCart: func,
-    toggleSearch: func.isRequired
+        toolbar: string,
+        switchers: string,
+        switchersContainer: string
+    })
 };
 
 export default Header;

@@ -1,27 +1,38 @@
-import React, { Fragment, useCallback } from 'react';
+import React, { Fragment } from 'react';
+import { FormattedMessage } from 'react-intl';
 import { arrayOf, bool, func, shape, string } from 'prop-types';
+import { useSuggestions } from '@magento/peregrine/lib/talons/SearchBar';
 
-import { mergeClasses } from '../../classify';
+import { useStyle } from '../../classify';
 import SuggestedCategories from './suggestedCategories';
 import SuggestedProducts from './suggestedProducts';
-import defaultClasses from './suggestions.css';
+import defaultClasses from './suggestions.module.css';
 
 const Suggestions = props => {
-    const { products, searchValue, setVisible, visible } = props;
-    const { filters, items } = products;
-    const classes = mergeClasses(defaultClasses, props.classes);
+    const {
+        displayResult,
+        filters,
+        products,
+        searchValue,
+        setVisible,
+        visible
+    } = props;
+    const { items } = products;
 
-    const onNavigate = useCallback(() => {
-        setVisible(false);
-    }, [setVisible]);
+    const talonProps = useSuggestions({
+        displayResult,
+        filters,
+        items,
+        setVisible,
+        visible
+    });
+    const { categories, onNavigate, shouldRender } = talonProps;
+    const classes = useStyle(defaultClasses, props.classes);
 
-    if (!visible || !filters || !items || !items.length) {
+    // render null without data
+    if (!shouldRender) {
         return null;
     }
-
-    const categoryFilter =
-        filters.find(({ name }) => name === 'Category') || {};
-    const categories = categoryFilter.filter_items || [];
 
     return (
         <Fragment>
@@ -31,7 +42,12 @@ const Suggestions = props => {
                 value={searchValue}
             />
             <h2 className={classes.heading}>
-                <span>{'Product Suggestions'}</span>
+                <span>
+                    <FormattedMessage
+                        id={'searchBar.heading'}
+                        defaultMessage={'Product Suggestions'}
+                    />
+                </span>
             </h2>
             <SuggestedProducts onNavigate={onNavigate} products={items} />
         </Fragment>

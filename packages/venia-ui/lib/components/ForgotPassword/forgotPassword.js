@@ -1,45 +1,60 @@
-import React, { Fragment, useCallback } from 'react';
-import { bool, func, shape, string } from 'prop-types';
+import React, { Fragment } from 'react';
+import { FormattedMessage, useIntl } from 'react-intl';
+import { func, shape, string } from 'prop-types';
 
-import { mergeClasses } from '../../classify';
+import { useForgotPassword } from '@magento/peregrine/lib/talons/ForgotPassword/useForgotPassword';
+
+import FormErrors from '../FormError';
+import { useStyle } from '../../classify';
 import ForgotPasswordForm from './ForgotPasswordForm';
 import FormSubmissionSuccessful from './FormSubmissionSuccessful';
-import defaultClasses from './forgotPassword.css';
 
-const INSTRUCTIONS = 'Enter your email below to receive a password reset link.';
+import forgotPasswordOperations from './forgotPassword.gql';
+
+import defaultClasses from './forgotPassword.module.css';
 
 const ForgotPassword = props => {
+    const { initialValues, onCancel } = props;
+
+    const { formatMessage } = useIntl();
+    const talonProps = useForgotPassword({
+        onCancel,
+        ...forgotPasswordOperations
+    });
+
     const {
-        completePasswordReset,
-        email,
-        initialValues,
-        isInProgress,
-        resetPassword,
-        onClose
-    } = props;
-    const classes = mergeClasses(defaultClasses, props.classes);
+        forgotPasswordEmail,
+        formErrors,
+        handleCancel,
+        handleFormSubmit,
+        hasCompleted,
+        isResettingPassword
+    } = talonProps;
 
-    const handleFormSubmit = useCallback(
-        ({ email }) => {
-            resetPassword({ email });
-        },
-        [resetPassword]
-    );
-
-    const handleContinue = useCallback(() => {
-        completePasswordReset({ email });
-        onClose();
-    }, [completePasswordReset, email, onClose]);
-
-    const children = isInProgress ? (
-        <FormSubmissionSuccessful email={email} onContinue={handleContinue} />
+    const classes = useStyle(defaultClasses, props.classes);
+    const INSTRUCTIONS = formatMessage({
+        id: 'forgotPassword.instructions',
+        defaultMessage:
+            'Please enter the email address associated with this account.'
+    });
+    const children = hasCompleted ? (
+        <FormSubmissionSuccessful email={forgotPasswordEmail} />
     ) : (
         <Fragment>
+            <h2 className={classes.title}>
+                <FormattedMessage
+                    id={'forgotPassword.recoverPasswordText'}
+                    defaultMessage={'Recover Password'}
+                />
+            </h2>
             <p className={classes.instructions}>{INSTRUCTIONS}</p>
             <ForgotPasswordForm
                 initialValues={initialValues}
+                isResettingPassword={isResettingPassword}
                 onSubmit={handleFormSubmit}
+                onCancel={handleCancel}
             />
+            <FormErrors errors={formErrors} />
         </Fragment>
     );
 
@@ -53,12 +68,12 @@ ForgotPassword.propTypes = {
         instructions: string,
         root: string
     }),
-    completePasswordReset: func.isRequired,
-    email: string,
     initialValues: shape({
         email: string
     }),
-    isInProgress: bool,
-    onClose: func.isRequired,
-    resetPassword: func.isRequired
+    onCancel: func
+};
+
+ForgotPassword.defaultProps = {
+    onCancel: () => {}
 };

@@ -1,13 +1,9 @@
-jest.mock('debug-error-middleware');
-jest.mock('fs');
+jest.mock('errorhandler');
 jest.mock('portscanner');
 jest.mock('graphql-playground-middleware-express');
 jest.mock('../../Utilities/configureHost');
 
-const fs = require('fs');
-jest.spyOn(fs, 'readFile');
-
-const debugErrorMiddleware = require('debug-error-middleware');
+const errorhandler = require('errorhandler');
 const waitForExpect = require('wait-for-expect');
 const portscanner = require('portscanner');
 const stripAnsi = require('strip-ansi');
@@ -16,6 +12,14 @@ const {
 } = require('graphql-playground-middleware-express');
 const configureHost = require('../../Utilities/configureHost');
 const { PWADevServer } = require('../');
+
+jest.mock('compression', () => () =>
+    jest.fn().mockName('compression middleware')
+);
+
+jest.mock('hastily', () => ({
+    HASTILY_STREAMABLE_PATH_REGEXP: 'HASTILY_STREAMABLE_PATH_REGEXP'
+}));
 
 portscanner.findAPortNotInUse.mockResolvedValue(10001);
 
@@ -52,6 +56,15 @@ const simulate = {
     }
 };
 
+const listeningApp = {
+    address() {
+        return {
+            address: '0.0.0.0',
+            port: 8000
+        };
+    }
+};
+
 beforeEach(() => {
     configureHost.mockReset();
     portscanner.checkPortStatus.mockReset();
@@ -76,10 +89,6 @@ test('.configure() adds `devServer` and plugins to webpack config', async () => 
     });
 
     expect(config.plugins.length).toBeGreaterThan(0);
-
-    expect(console.warn).toHaveBeenCalledWith(
-        expect.stringMatching(/avoid\s+ServiceWorker\s+collisions/m)
-    );
 });
 
 test('.configure() logs that a custom origin has not yet been created', async () => {
@@ -97,8 +106,7 @@ test('.configure() logs that a custom origin has not yet been created', async ()
         compress: true,
         hot: true,
         host: '0.0.0.0',
-        port: 10001,
-        publicPath: 'http://0.0.0.0:10001/bork/'
+        port: 10001
     });
 });
 
@@ -122,8 +130,7 @@ test('.configure() creates a project-unique host if customOrigin config set in e
         https: {
             key: 'the chickie',
             cert: 'chop chop'
-        },
-        publicPath: 'https://bork.bork.bork:8001/bork/'
+        }
     });
 });
 
@@ -147,8 +154,7 @@ test('.configure() lets devServer.host override customOrigin.host', async () => 
         compress: true,
         hot: true,
         host: 'borque.borque',
-        port: 8001,
-        publicPath: 'http://borque.borque:8001/bork/'
+        port: 8001
     });
     expect(console.warn).toHaveBeenCalledWith(
         expect.stringMatching(/overriding the custom hostname/)
@@ -171,8 +177,7 @@ test('.configure() falls back to an open port if desired port is not available, 
         https: {
             key: 'the chickie',
             cert: 'chop chop'
-        },
-        publicPath: 'https://bork.bork.bork:10001/bork/'
+        }
     });
     expect(console.warn).toHaveBeenCalledWith(
         expect.stringMatching(/port\s+8001\s+is\s+in\s+use/m)
@@ -204,7 +209,7 @@ test('debugErrorMiddleware and notifier attached', async () => {
     config.publicPath = 'full/path/to/publicPath';
 
     const debugMiddleware = () => {};
-    debugErrorMiddleware.express.mockReturnValueOnce(debugMiddleware);
+    errorhandler.mockReturnValueOnce(debugMiddleware);
 
     await PWADevServer.configure({}, config);
 
@@ -214,6 +219,7 @@ test('debugErrorMiddleware and notifier attached', async () => {
     };
     const waitUntilValid = jest.fn();
     const server = {
+        listeningApp,
         middleware: {
             waitUntilValid
         }
@@ -231,14 +237,6 @@ test('debugErrorMiddleware and notifier attached', async () => {
 test('graphql-playground middleware attached', async () => {
     const config = mockConfig();
 
-    const mockFileContents = {
-        'path/to/query.graphql': '{ foo { bar } }',
-        'path/to/otherQuery.graphql': '{ foo { bar, baz } }'
-    };
-    fs.readFile.mockImplementation((p, opts, cb) =>
-        cb(null, mockFileContents[p])
-    );
-
     const middleware = jest.fn();
     playgroundMiddleware.mockReturnValueOnce(middleware);
 
@@ -254,13 +252,11 @@ test('graphql-playground middleware attached', async () => {
         get: jest.fn(),
         use: jest.fn()
     };
-    const stats = {
+    const compilerStatsData = {
         compilation: {
             fileDependencies: new Set([
                 'path/to/module.js',
-                'path/to/query.graphql',
                 'path/to/otherModule.js',
-                'path/to/otherQuery.graphql',
                 'path/to/thirdModule.js'
             ])
         }
@@ -270,7 +266,7 @@ test('graphql-playground middleware attached', async () => {
             done: {
                 tap(name, callback) {
                     setImmediate(() => {
-                        callback(stats);
+                        callback(compilerStatsData);
                     });
                 }
             }
@@ -278,6 +274,7 @@ test('graphql-playground middleware attached', async () => {
     };
     const waitUntilValid = jest.fn();
     const server = {
+        listeningApp,
         middleware: {
             waitUntilValid,
             context: {
@@ -298,21 +295,8 @@ test('graphql-playground middleware attached', async () => {
     await waitForExpect(() => {
         expect(playgroundMiddleware).toHaveBeenCalled();
     });
-    expect(fs.readFile).toHaveBeenCalledTimes(2);
     expect(playgroundMiddleware.mock.calls[0][0]).toMatchObject({
-        endpoint: '/graphql',
-        tabs: [
-            {
-                endpoint: '/graphql',
-                name: 'path/to/query.graphql',
-                query: '{ foo { bar } }'
-            },
-            {
-                endpoint: '/graphql',
-                name: 'path/to/otherQuery.graphql',
-                query: '{ foo { bar, baz } }'
-            }
-        ]
+        endpoint: '/graphql'
     });
     expect(middleware).toHaveBeenCalledWith(req, res, expect.any(Function));
     config.devServer.after(app, server);
@@ -326,46 +310,47 @@ test('graphql-playground middleware attached', async () => {
     expect(playgroundMiddleware).toHaveBeenCalledTimes(1);
 });
 
-test('graphql-playground middleware handles error during project query read', async () => {
+test('compression middleware to be attached if env.ENABLE_EXPRESS_SERVER_COMPRESSION is true', async () => {
+    process.env.ENABLE_EXPRESS_SERVER_COMPRESSION = 'true';
     const config = mockConfig();
-
-    fs.readFile.mockImplementation((p, opts, cb) =>
-        cb(new Error(`ENOENT: ${p} not found`))
-    );
 
     const middleware = jest.fn();
     playgroundMiddleware.mockReturnValueOnce(middleware);
 
-    await PWADevServer.configure({ graphqlPlayground: true }, config);
-
-    expect(config.devServer.before).toBeInstanceOf(Function);
+    await PWADevServer.configure(
+        {
+            graphqlPlayground: true
+        },
+        config
+    );
+    const use = jest.fn();
     const app = {
         get: jest.fn(),
-        use: jest.fn()
+        use
     };
-    const stats = {
+    const compilerStatsData = {
         compilation: {
             fileDependencies: new Set([
                 'path/to/module.js',
-                'path/to/query.graphql',
                 'path/to/otherModule.js',
-                'path/to/otherQuery.graphql',
                 'path/to/thirdModule.js'
             ])
         }
     };
-    let readHook;
     const compiler = {
         hooks: {
             done: {
                 tap(name, callback) {
-                    readHook = callback;
+                    setImmediate(() => {
+                        callback(compilerStatsData);
+                    });
                 }
             }
         }
     };
     const waitUntilValid = jest.fn();
     const server = {
+        listeningApp,
         middleware: {
             waitUntilValid,
             context: {
@@ -374,29 +359,59 @@ test('graphql-playground middleware handles error during project query read', as
         }
     };
     config.devServer.before(app, server);
-    await waitForExpect(() => {
-        expect(app.get).toHaveBeenCalled();
-        expect(readHook).toBeTruthy();
-    });
-    const middlewareProxy = app.get.mock.calls[0][1];
-    const req = {};
-    const res = {};
-    readHook(stats);
-    await expect(middlewareProxy(req, res)).rejects.toThrow('ENOENT');
+
+    expect(use.mock.calls).toMatchSnapshot();
 });
 
-test('.configure() allows a `public` override', async () => {
+test('compression middleware should not be attached if env.ENABLE_EXPRESS_SERVER_COMPRESSION is false', async () => {
+    process.env.ENABLE_EXPRESS_SERVER_COMPRESSION = 'false';
     const config = mockConfig();
+
+    const middleware = jest.fn();
+    playgroundMiddleware.mockReturnValueOnce(middleware);
+
     await PWADevServer.configure(
         {
-            devServer: {
-                public: 'docker.local'
-            }
+            graphqlPlayground: true
         },
         config
     );
+    const use = jest.fn();
+    const app = {
+        get: jest.fn(),
+        use
+    };
+    const compilerStatsData = {
+        compilation: {
+            fileDependencies: new Set([
+                'path/to/module.js',
+                'path/to/otherModule.js',
+                'path/to/thirdModule.js'
+            ])
+        }
+    };
+    const compiler = {
+        hooks: {
+            done: {
+                tap(name, callback) {
+                    setImmediate(() => {
+                        callback(compilerStatsData);
+                    });
+                }
+            }
+        }
+    };
+    const waitUntilValid = jest.fn();
+    const server = {
+        listeningApp,
+        middleware: {
+            waitUntilValid,
+            context: {
+                compiler
+            }
+        }
+    };
+    config.devServer.before(app, server);
 
-    expect(config.devServer).toMatchObject({
-        publicPath: 'https://docker.local/'
-    });
+    expect(use.mock.calls).toMatchSnapshot();
 });

@@ -1,183 +1,151 @@
-# Release 3.0.0
+# Release 12.1.0
 
 **NOTE:**
-_This changelog only contains release notes for PWA Studio 3.0.0 and above._
-_For older release notes, see [PWA Studio releases][]._
+_This changelog only contains release notes for PWA Studio and Venia 12.1.0_
+_For older release notes, see_ [PWA Studio releases][].
 
-## Table of contents
+## New Features
 
--   [What's new in 3.0.0](#whats-new-in-300)
--   [Updating from 2.1.0](#updating-from-210)
+-  **Added PWA Studio metapackages** — In this release, we introduce our [PWA Studio metapackages][]: One for [Magento Open Source][] and one for [Adobe Commerce][]. These metapackages provide a new way to add any additional Open Source or Commerce features needed by your PWA modules. The PWA Studio team will also use these metapackages to add new features to the Open Source and Commerce code bases as needed. In fact, we did that in this release. We extended the GraphQL schema to include a new mutation and query as well as new fields that provide more details when a cart item error occurs.
 
-## What's new in 3.0.0
+    **UPDATES REQUIRED!** This release and all future PWA Studio releases will have dependencies on these metapackages. That means you need to add one or both of the metapackages to your PWA apps (depending on your backend target). Instructions for installing these packages are in the README files for each metapackage repo:
 
-PWA Studio 3.0.0 contains improvements, new features, and some breaking changes.
+    **For Open Source backends**: Install the [PWA Magento Open Source metapackage][].
 
-### Summary of major changes
+    **For Adobe Commerce backends**: Install the [PWA Adobe Commerce metapackage][].
 
--   **Peregrine hooks:**
-    Custom [React Hooks][] that contain data and state management logic has been added to the Peregrine library.
-    These hooks allow developers to easily create functional components that focus on presentational logic.
-    These also allow for a more modular use of PWA logic and easier "restyling" of Venia (or any PWA storefront built using PWA Studio).
+-  **Added new PWA Tailwind theming to Venia Header** — Refactored the Venia site `Header` component to use our new [Tailwind](https://tailwindcss.com/) theming framework. The `Header` component is the first component to use our theming framework. Other components will follow in the coming releases.
 
-### Summary of breaking changes
+-  **Added a GraphQL mutation for submitting the Contact Us form.** — You can now use the `contactUs` mutation to submit the Contact Us form data to the Open Source or Commerce backend.
 
--   PR [#1169][] includes the following breaking changes:
+-  **Added GraphQL `storeConfig` fields** — Use the `contact_enabled` and `newsletter_enabled` fields in a `storeConfig` query to determine whether the Contact Us and Newsletter features are enabled.
 
-    -   Removed some public user actions
-    -   Prop type removed in the `CreateAccount` component
-    -   Deleted the `ErrorDisplay` component
-    -   Deleted the `Input` component
+-  **Added GraphQL schema to expose the error status of cart items** — The `CartItemInterface` now contains the `errors` field, which uses the `CartItemError` data type to return an error code and message.
 
--   PR [#1078][] includes the following breaking changes:
+## Summary of all changes
+| Type  | Description                                                                             | GitHub PR             |
+| :---- | :-------------------------------------------------------------------------------------- | :-------------------- |
+| Bug   | <!--PWA-2364-->Add to Cart flow for simple products on Home page is broken              | [3535][]              |
+| Bug   | <!--PWA-2287-->Cypress snapshots outdated with newsletter in footer                     | [3506][]              |
+| Bug   | <!--PWA-2286-->Venia Mega nav is broken in scaffolded app on develop branch.            | [3513][]              |
+| Task  | <!--PWA-2251-->Repo Metadata Service Onboarding: UPWARD-PHP                             | `magento-commerce` PR |
+| Bug   | <!--PWA-2190-->Cart remains active in browser memory on PWA site even after checkout    | [3495][]              |
+| Story | <!--PWA-2154-->Parallelize Cypress tests on the CI                                      | [3460][]              |
+| Task  | <!--PWA-2141-->Add installation instructions to Venia Sample Data repo                  | `magento-commerce` PR |
+| Task  | <!--PWA-2140-->Add local and Cloud installation instructions to meta packages           | `magento-commerce` PR |
+| Bug   | <!--PWA-2133-->Cart page out of stock crash                                             | [3447][]              |
+| Story | <!--PWA-2132-->Update Item Quantities                                                   | [3464][]              |
+| Bug   | <!--PWA-2131-->Improve Venia "create" scaffold script to stop relying on NPM log output | [3463][]              |
+| Story | <!--PWA-2004-->GQL Support for Contact Us & Newsletter                                  | `magento-commerce` PR |
+| Story | <!--PWA-1885-->Refactor Site Header to use Tailwind Theme                               | [3472][]              |
 
-    -   `SearchBar` component converted into a React hook that uses custom Peregrine hooks
+## Bug fixes
 
-### Peregrine changes
+-  [3464][] — **Cart**: Fixed an issue that prevented users from updating item quantities and removing items from the cart when using Magento 2.4-develop and 2.4.3 backends.
+-  [3447][] — **Cart**: Fixed a rendering issue where out-of-stock products in your cart could not be removed.
+-  [3495][] — **Cart**: Fixed issues that occurred when accessing the same store from different browser tabs or windows. To fix the problem, we introduced a storage listener on the cart context that fires a page reload whenever the `cartId` changes from another tab. Reloading the page forces Redux to persist a new `cartId` in storage.
+-  [3535][] — **Cart**: Fixed a regression issue (during 12.1.0 development) that prevented the Add to Cart button from working on simple products featured on the Venia Home page.
+-  [3513][] — **Mega Menu**: Fixed broken `Header` style when using the `develop` branch in a scaffolded project.
+-  [3463][] — **Scaffolding CLI**: Fixed the Venia `_buildpack/create.js` `DEBUG_PROJECT_CREATION` test flag that broke when using NPM versions >=`7.23`.
 
-| Change type | Description                         | PR        |
-| ----------- | ----------------------------------- | --------- |
-| Feature     | New custom React hooks              | [#1078][] |
-| Update      | Upgrade `react-router-dom` to 5.0.0 | [#1063][] |
+## Metapackage introduction and updates
 
-### UPWARD changes
+As mentioned above, we not only introduced metapackages in this release, we used them! Our fix for the cart rendering issue ([3447][]) required new GraphQL fields that we added to the metapackages. These new fields require you to install one or both of our metapackages into your PWA apps (depending on your backend target). If you missed the links provided above, here they are again:
 
-| Change type | Description                     | PR                   |
-| ----------- | ------------------------------- | -------------------- |
-| Feature     | New resolver added: UrlResolver | [#1058][], [#1175][] |
+**For Open Source backends**: Install the [PWA Magento Open Source metapackage][].
 
-### Venia changes
+**For Adobe Commerce backends**: Install the [PWA Adobe Commerce metapackage][].
 
-| Change type | Description                                                                 | PR        |
-| ----------- | --------------------------------------------------------------------------- | --------- |
-| Feature     | New SwatchTooltip component                                                 | [#956][]  |
-| Feature     | Focus search input on search icon button click                              | [#1019][] |
-| Update      | Improve the usability of the "Remove item" feature in the MiniCart          | [#882][]  |
-| Tests       | Add component unit tests                                                    | [#1027][] |
-| Bugfix      | Make Create Account and Sign In input style consistent                      | [#1169][] |
-| Bugfix      | Populate **Create Account** fields with correct values after guest checkout | [#1153][] |
-| Bugfix      | Fix expired guest cart errors                                               | [#1150][] |
-| Bugfix      | Fix header logo width style                                                 | [#1070][] |
-| Bugfix      | Disable adding to cart until product options are selected                   | [#1097][] |
-| Bugfix      | Disable update cart button until product options are selected               | [#1125][] |
-| Bugfix      | Update `div` tag with `Fragment`                                            | [#1103][] |
-| Bugfix      | Fix configurable media loading issue                                        | [#1094][] |
-| Bugfix      | Use placeholder in carousel while loading next image                        | [#1085][] |
-| Bugfix      | Add `/` to graphql validation endpoint                                      | [#1045][] |
-| Bugfix      | Fix `makeUrl` for Fastly                                                    | [#1039][] |
-| Bugfix      | Hide menu item from navigation if it is disabled in the Magento admin       | [#1022][] |
-| Bugfix      | Prevent adding to cart during rapid multi-clicking                          | [#910][]  |
+## Documentation updates
 
-### Buildpack changes
+-  **Metapackage Installation**: Added instructions for installing our new metapackages for both local and cloud-based environments. The instructions have been added to the READMEs of the Open Source and Commerce repos: [PWA Magento Open Source metapackage][] and [PWA Adobe Commerce metapackage][].
 
-| Change type | Description                           | PR        |
-| ----------- | ------------------------------------- | --------- |
-| Update      | Update `workbox-webpack-plugin` to v4 | [#1102][] |
+## Known Issues
 
-### Misc project changes
+No known issues.
 
-| Change type    | Description                             | PR                                         |
-| -------------- | --------------------------------------- | ------------------------------------------ |
-| Update         | Update eslint configuration version     | [#1088][]                                  |
-| Infrastructure | CI/CD and DevOps fixes and improvements | [#1132][], [#1155][], [#1087][], [#1043][] |
-| Infrastructure | GitHub template updates                 | [#1077][], [#1048][]                       |
+## Test Updates
 
-## Documentation changes
+-  [3460][] — Added Docker parallelization for Cypress testing to cut testing times by 50%. When run synchronously, the whole suite of tests took about 30 minutes. Now it takes 13–15 minutes.
 
-| Change type   | Description                                                 | PR                                                                          |
-| ------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Documentation | Explainer comments added to the [`venia-upward.yml`][] file | [#1174][]                                                                   |
-| Documentation | New reference docs for Peregrine hooks                      | [#1253][]                                                                   |
-| Documentation | New [Client side caching topic][]                           | [#1152][]                                                                   |
-| Documentation | [Hello UPWARD][] tutorial                                   | [#1080][]                                                                   |
-| Update        | Add explanation to [Magento compatibility table][]          | [#1059][]                                                                   |
-| Feature       | Documentation linting tool added                            | [#1140][], [#1177][]                                                        |
-| Bugfix        | Editorial and minor content fixes                           | [#1171][], [#1167][], [#1158][], [#1139][], [#1109][], [#1020][], [#1000][] |
+-  [3506][] - Fixed outdated snapshots for failing Page Builder tests on the `develop` branch. The tests started failing when the Newsletter form was added to the footer.
 
-## Updating from 2.1.0
+## Upgrading from a previous version
 
-The method for updating to 3.0.0 from 2.1.0 depends on how PWA Studio is incorporated into your project.
-The following are common use cases we have identified and how to update the project code.
+Use the steps outlined in this section to update your [scaffolded project][] from 12.0.0 to 12.1.0.
+See [Upgrading versions][] for more information about upgrading between PWA Studio versions.
 
-### PWA Studio fork
+[scaffolded project]: https://magento.github.io/pwa-studio/tutorials/pwa-studio-fundamentals/project-setup/
+[upgrading versions]: https://magento.github.io/pwa-studio/technologies/upgrading-versions/
 
-Many PWA Studio users have forked the PWA Studio Git repository.
-Even though their codebase may have diverged a great deal from the current codebase, there is still a Git relationship.
+### Add the new metapackages to your project
 
-#### Upgrade method: Update using Git
+As noted above, you need to add one or both of our new metapackages to your projects. Use these instructions:
 
-_Pull_ and _Merge_ the changes from the upstream repository using Git.
-Most of the conflicts will be in components that we have fully refactored.
+-  **For Open Source backends**: Install the [PWA Magento Open Source metapackage][].
 
-We recommend merging the library code we changed and updating component calls with any new prop signatures introduced in this version.
+-  **For Adobe Commerce backends**: Install the [PWA Adobe Commerce metapackage][].
 
-### Manual code copies
+### Update dependencies
 
-Some PWA Studio users have copied parts of the code into their own projects.
-This is similar to the Git workflow, but without the merging tools Git provides.
+Open your `package.json` file and update the PWA Studio package dependencies to the versions associated with this release.
+The following table lists the latest versions of each package as of 12.1.0.
+Versions that are in **bold** indicate a version change for this release.
 
-#### Upgrade method: Manual copy updates
+**Note:**
+Your project may not depend on some of the packages listed in this table.
 
-Updating this code involves manually copying updates for the code they use.
-New code may also need to be copied over if the updated code depends on it.
+| Package                               | Latest version |
+| ------------------------------------- | -------------- |
+| `babel-preset-peregrine`              | 1.1.0          |
+| **_`create-pwa`_**                    | _**2.0.1**_    |
+| **_`upward-security-headers`_**       | _**1.0.5**_    |
+| **_`venia-adobe-data-layer`_**        | _**1.0.2**_    |
+| `venia-sample-backends`               | 0.0.4          |
+| **_`venia-sample-language-packs`_**   | _**0.0.5**_    |
+| **_`venia-sample-payments-checkmo`_** | _**0.0.3**_    |
+| **_`pagebuilder`_**                   | _**7.0.1**_    |
+| **_`peregrine`_**                     | _**12.1.0**_   |
+| `pwa-buildpack`                       | 11.0.0         |
+| **_`pwa-theme-venia`_**               | _**1.1.0**_    |
+| `upward-js`                           | 5.2.0          |
+| `upward-spec`                         | 5.1.0          |
+| **_`venia-concept`_**                 | _**12.1.0**_   |
+| **_`venia-ui`_**                      | _**9.1.0**_    |
+| `magento2-upward-connector`           | 1.3.0          |
+| `upward-php`                          | 1.2.0          |
 
-This method can be a chore, and we hope that some of the features in 3.0.0 will help these users migrate to a package management approach.
+<!-- [PWA-2364]: https://jira.corp.magento.com/browse/PWA-2364
+[PWA-2287]: https://jira.corp.magento.com/browse/PWA-2287
+[PWA-2286]: https://jira.corp.magento.com/browse/PWA-2286
+[PWA-2251]: https://jira.corp.magento.com/browse/PWA-2251
+[PWA-2190]: https://jira.corp.magento.com/browse/PWA-2190
+[PWA-2154]: https://jira.corp.magento.com/browse/PWA-2154
+[PWA-2151]: https://jira.corp.magento.com/browse/PWA-2151
+[PWA-2141]: https://jira.corp.magento.com/browse/PWA-2141
+[PWA-2140]: https://jira.corp.magento.com/browse/PWA-2140
+[PWA-2133]: https://jira.corp.magento.com/browse/PWA-2133
+[PWA-2132]: https://jira.corp.magento.com/browse/PWA-2132
+[PWA-2131]: https://jira.corp.magento.com/browse/PWA-2131
+[PWA-2106]: https://jira.corp.magento.com/browse/PWA-2106
+[PWA-2004]: https://jira.corp.magento.com/browse/PWA-2004
+[PWA-1885]: https://jira.corp.magento.com/browse/PWA-1885 -->
 
-### NPM packages
+[3535]: https://github.com/magento/pwa-studio/pull/3535
+[3506]: https://github.com/magento/pwa-studio/pull/3506
+[3513]: https://github.com/magento/pwa-studio/pull/3513
+[3495]: https://github.com/magento/pwa-studio/pull/3495
+[3460]: https://github.com/magento/pwa-studio/pull/3460
+[3473]: https://github.com/magento/pwa-studio/pull/3473
+[3447]: https://github.com/magento/pwa-studio/pull/3447
+[3464]: https://github.com/magento/pwa-studio/pull/3464
+[3463]: https://github.com/magento/pwa-studio/pull/3463
+[3472]: https://github.com/magento/pwa-studio/pull/3472
 
-Some users have imported the PWA Studio libraries using NPM.
-This is the easiest way to work with the released versions of PWA Studio.
+[PWA Studio releases]: https://github.com/magento/pwa-studio/releases
 
-#### Upgrade method: Update `package.json`
-
-To upgrade to 3.0.0, update the project's `package.json` file and change the dependency version for PWA Studio.
-
-[pwa studio releases]: https://github.com/magento/pwa-studio/releases
-[client side caching topic]: https://pwastudio.io/technologies/basic-concepts/client-side-caching/
-[`venia-upward.yml`]: https://github.com/magento/pwa-studio/blob/develop/packages/venia-concept/venia-upward.yml
-[hello upward]: https://pwastudio.io/tutorials/hello-upward/simple-server/
-[magento compatibility table]: https://pwastudio.io/technologies/magento-compatibility/
-[react hooks]: https://reactjs.org/docs/hooks-intro.html
-[#1253]: https://github.com/magento/pwa-studio/pull/1253
-[#1177]: https://github.com/magento/pwa-studio/pull/1177
-[#1058]: https://github.com/magento/pwa-studio/pull/1058
-[#1175]: https://github.com/magento/pwa-studio/pull/1175
-[#1174]: https://github.com/magento/pwa-studio/pull/1174
-[#1171]: https://github.com/magento/pwa-studio/pull/1171
-[#1169]: https://github.com/magento/pwa-studio/pull/1169
-[#1167]: https://github.com/magento/pwa-studio/pull/1167
-[#1158]: https://github.com/magento/pwa-studio/pull/1158
-[#1155]: https://github.com/magento/pwa-studio/pull/1155
-[#1153]: https://github.com/magento/pwa-studio/pull/1153
-[#1152]: https://github.com/magento/pwa-studio/pull/1152
-[#1150]: https://github.com/magento/pwa-studio/pull/1150
-[#1140]: https://github.com/magento/pwa-studio/pull/1140
-[#1139]: https://github.com/magento/pwa-studio/pull/1139
-[#1132]: https://github.com/magento/pwa-studio/pull/1132
-[#1070]: https://github.com/magento/pwa-studio/pull/1070
-[#1125]: https://github.com/magento/pwa-studio/pull/1125
-[#1109]: https://github.com/magento/pwa-studio/pull/1109
-[#1103]: https://github.com/magento/pwa-studio/pull/1103
-[#1102]: https://github.com/magento/pwa-studio/pull/1102
-[#1097]: https://github.com/magento/pwa-studio/pull/1097
-[#1094]: https://github.com/magento/pwa-studio/pull/1094
-[#1088]: https://github.com/magento/pwa-studio/pull/1088
-[#1087]: https://github.com/magento/pwa-studio/pull/1087
-[#1085]: https://github.com/magento/pwa-studio/pull/1085
-[#1080]: https://github.com/magento/pwa-studio/pull/1080
-[#1077]: https://github.com/magento/pwa-studio/pull/1077
-[#1063]: https://github.com/magento/pwa-studio/pull/1063
-[#1059]: https://github.com/magento/pwa-studio/pull/1059
-[#1048]: https://github.com/magento/pwa-studio/pull/1048
-[#1045]: https://github.com/magento/pwa-studio/pull/1045
-[#1039]: https://github.com/magento/pwa-studio/pull/1039
-[#1027]: https://github.com/magento/pwa-studio/pull/1027
-[#1022]: https://github.com/magento/pwa-studio/pull/1022
-[#1020]: https://github.com/magento/pwa-studio/pull/1020
-[#1019]: https://github.com/magento/pwa-studio/pull/1019
-[#1000]: https://github.com/magento/pwa-studio/pull/1000
-[#956]: https://github.com/magento/pwa-studio/pull/956
-[#910]: https://github.com/magento/pwa-studio/pull/910
-[#882]: https://github.com/magento/pwa-studio/pull/882
-[#1078]: https://github.com/magento/pwa-studio/pull/1078
-[#1043]: https://github.com/magento/pwa-studio/pull/1043
+[PWA Studio metapackages]: https://developer.adobe.com/commerce/pwa-studio/metapackages/
+[Magento Open Source]: https://developer.adobe.com/commerce/pwa-studio/metapackages/open-source/
+[Adobe Commerce]: https://developer.adobe.com/commerce/pwa-studio/metapackages/commerce/
+[PWA Magento Open Source metapackage]: https://developer.adobe.com/commerce/pwa-studio/metapackages/open-source/
+[PWA Adobe Commerce metapackage]: https://developer.adobe.com/commerce/pwa-studio/metapackages/commerce/

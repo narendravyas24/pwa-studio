@@ -1,115 +1,191 @@
-import React from 'react';
-import { arrayOf, bool, func, number, object, shape, string } from 'prop-types';
+import React, { Fragment, useEffect } from 'react';
+import { FormattedMessage } from 'react-intl';
+import {
+    Lock as LockIcon,
+    AlertCircle as AlertCircleIcon
+} from 'react-feather';
+import { bool, shape, string } from 'prop-types';
 
-import Body from './body';
-import Footer from './footer';
-import Header from './header';
-import Mask from './mask';
-import defaultClasses from './miniCart.css';
+import { useScrollLock, Price, useToasts } from '@magento/peregrine';
+import { useMiniCart } from '@magento/peregrine/lib/talons/MiniCart/useMiniCart';
+import { useStyle } from '@magento/venia-ui/lib/classify';
 
-import { mergeClasses } from '../../classify';
-import getCurrencyCode from '../../util/getCurrencyCode';
+import Button from '../Button';
+import Icon from '../Icon';
+import StockStatusMessage from '../StockStatusMessage';
+import ProductList from './ProductList';
+import defaultClasses from './miniCart.module.css';
+import operations from './miniCart.gql';
 
-const MiniCart = props => {
-    // Props.
+const errorIcon = <Icon src={AlertCircleIcon} size={20} />;
+
+/**
+ * The MiniCart component shows a limited view of the user's cart.
+ *
+ * @param {Boolean} props.isOpen - Whether or not the MiniCart should be displayed.
+ * @param {Function} props.setIsOpen - Function to toggle mini cart
+ */
+const MiniCart = React.forwardRef((props, ref) => {
+    const { isOpen, setIsOpen } = props;
+
+    // Prevent the page from scrolling in the background
+    // when the MiniCart is open.
+    useScrollLock(isOpen);
+
+    const talonProps = useMiniCart({
+        setIsOpen,
+        operations
+    });
+
     const {
-        beginEditItem,
-        cancelCheckout,
-        cart,
-        closeDrawer,
-        endEditItem,
-        isCartEmpty,
-        isMiniCartMaskOpen,
-        isOpen,
-        removeItemFromCart,
-        updateItemInCart
-    } = props;
-    const { editItem, isEditingItem, isLoading, isUpdatingItem } = cart;
+        closeMiniCart,
+        errorMessage,
+        handleEditCart,
+        handleProceedToCheckout,
+        handleRemoveItem,
+        loading,
+        productList,
+        subTotal,
+        totalQuantity,
+        configurableThumbnailSource,
+        storeUrlSuffix
+    } = talonProps;
 
-    // Members.
-    const classes = mergeClasses(defaultClasses, props.classes);
-    const currencyCode = getCurrencyCode(cart);
-    const cartItems = cart.details.items;
-    const numItems = cart.details.items_qty;
+    const classes = useStyle(defaultClasses, props.classes);
     const rootClass = isOpen ? classes.root_open : classes.root;
-    const subtotal = cart.totals.subtotal;
+    const contentsClass = isOpen ? classes.contents_open : classes.contents;
+    const quantityClassName = loading
+        ? classes.quantity_loading
+        : classes.quantity;
+    const priceClassName = loading ? classes.price_loading : classes.price;
 
-    const showFooter = !(isCartEmpty || isLoading || isEditingItem);
-    const footer = showFooter ? (
-        <Footer
-            cart={cart}
-            currencyCode={currencyCode}
-            isMiniCartMaskOpen={isMiniCartMaskOpen}
-            numItems={numItems}
-            subtotal={subtotal}
-        />
+    const isCartEmpty = !(productList && productList.length);
+
+    const [, { addToast }] = useToasts();
+
+    useEffect(() => {
+        if (errorMessage) {
+            addToast({
+                type: 'error',
+                icon: errorIcon,
+                message: errorMessage,
+                dismissable: true,
+                timeout: 7000
+            });
+        }
+    }, [addToast, errorMessage]);
+
+    const header = subTotal ? (
+        <Fragment>
+            <div className={classes.stockStatusMessageContainer}>
+                <StockStatusMessage cartItems={productList} />
+            </div>
+            <span className={quantityClassName}>
+                <FormattedMessage
+                    id={'miniCart.totalQuantity'}
+                    defaultMessage={'Items'}
+                    values={{ totalQuantity }}
+                />
+            </span>
+            <span className={priceClassName}>
+                <span>
+                    <FormattedMessage
+                        id={'miniCart.subtotal'}
+                        defaultMessage={'Subtotal: '}
+                    />
+                </span>
+                <Price
+                    currencyCode={subTotal.currency}
+                    value={subTotal.value}
+                />
+            </span>
+        </Fragment>
     ) : null;
 
+    const contents = isCartEmpty ? (
+        <div className={classes.emptyCart}>
+            <div
+                className={classes.emptyMessage}
+                data-cy="MiniCart-emptyMessage"
+            >
+                <FormattedMessage
+                    id={'miniCart.emptyMessage'}
+                    defaultMessage={'There are no items in your cart.'}
+                />
+            </div>
+        </div>
+    ) : (
+        <Fragment>
+            <div className={classes.header}>{header}</div>
+            <div className={classes.body}>
+                <ProductList
+                    items={productList}
+                    loading={loading}
+                    handleRemoveItem={handleRemoveItem}
+                    closeMiniCart={closeMiniCart}
+                    configurableThumbnailSource={configurableThumbnailSource}
+                    storeUrlSuffix={storeUrlSuffix}
+                />
+            </div>
+            <div className={classes.footer}>
+                <Button
+                    onClick={handleProceedToCheckout}
+                    priority="high"
+                    className={classes.checkoutButton}
+                    disabled={loading || isCartEmpty}
+                >
+                    <Icon
+                        size={16}
+                        src={LockIcon}
+                        classes={{
+                            icon: classes.checkoutIcon
+                        }}
+                    />
+                    <FormattedMessage
+                        id={'miniCart.checkout'}
+                        defaultMessage={'CHECKOUT'}
+                    />
+                </Button>
+                <Button
+                    onClick={handleEditCart}
+                    priority="high"
+                    className={classes.editCartButton}
+                    disabled={loading || isCartEmpty}
+                >
+                    <FormattedMessage
+                        id={'miniCart.editCartButton'}
+                        defaultMessage={'Edit Shopping Bag'}
+                    />
+                </Button>
+            </div>
+        </Fragment>
+    );
+
     return (
-        <aside className={rootClass}>
-            <Header closeDrawer={closeDrawer} isEditingItem={isEditingItem} />
-            <Body
-                beginEditItem={beginEditItem}
-                cartItems={cartItems}
-                closeDrawer={closeDrawer}
-                currencyCode={currencyCode}
-                editItem={editItem}
-                endEditItem={endEditItem}
-                isCartEmpty={isCartEmpty}
-                isEditingItem={isEditingItem}
-                isLoading={isLoading}
-                isUpdatingItem={isUpdatingItem}
-                removeItemFromCart={removeItemFromCart}
-                updateItemInCart={updateItemInCart}
-            />
-            <Mask isActive={isMiniCartMaskOpen} dismiss={cancelCheckout} />
-            {footer}
+        <aside className={rootClass} data-cy="MiniCart-root">
+            <div ref={ref} className={contentsClass}>
+                {contents}
+            </div>
         </aside>
     );
-};
-
-MiniCart.propTypes = {
-    beginEditItem: func.isRequired,
-    cancelCheckout: func,
-    cart: shape({
-        details: shape({
-            currency: shape({
-                quote_currency_code: string
-            }),
-            items: arrayOf(
-                shape({
-                    item_id: number,
-                    name: string,
-                    price: number,
-                    product_type: string,
-                    qty: number,
-                    quote_id: string,
-                    sku: string
-                })
-            ),
-            items_qty: number
-        }).isRequired,
-        editItem: object,
-        isEditingItem: bool,
-        isLoading: bool,
-        isUpdatingItem: bool,
-        totals: shape({
-            subtotal: number
-        }).isRequired
-    }).isRequired,
-    classes: shape({
-        header: string,
-        root: string,
-        root_open: string,
-        title: string
-    }),
-    closeDrawer: func,
-    endEditItem: func.isRequired,
-    isCartEmpty: bool,
-    isMiniCartMaskOpen: bool,
-    isOpen: bool,
-    removeItemFromCart: func,
-    updateItemInCart: func
-};
+});
 
 export default MiniCart;
+
+MiniCart.propTypes = {
+    classes: shape({
+        root: string,
+        root_open: string,
+        contents: string,
+        contents_open: string,
+        header: string,
+        body: string,
+        footer: string,
+        checkoutButton: string,
+        editCartButton: string,
+        emptyCart: string,
+        emptyMessage: string,
+        stockStatusMessageContainer: string
+    }),
+    isOpen: bool
+};

@@ -1,33 +1,24 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { arrayOf, func, number, shape, string } from 'prop-types';
-import { Link } from '@magento/venia-drivers';
 
-import { mergeClasses } from '../../classify';
-import getLocation from './getLocation';
-import defaultClasses from './suggestedCategories.css';
+import { useStyle } from '../../classify';
+import SuggestedCategory from './suggestedCategory';
+import defaultClasses from './suggestedCategories.module.css';
 
 const SuggestedCategories = props => {
     const { categories, limit, onNavigate, value } = props;
-    const classes = mergeClasses(defaultClasses, props.classes);
-
-    const handleClick = useCallback(() => {
-        if (typeof onNavigate === 'function') {
-            onNavigate();
-        }
-    }, [onNavigate]);
+    const classes = useStyle(defaultClasses, props.classes);
 
     const items = categories
         .slice(0, limit)
-        .map(({ label, value_string: categoryId }) => (
+        .map(({ label, value: categoryId }) => (
             <li key={categoryId} className={classes.item}>
-                <Link
-                    className={classes.link}
-                    to={getLocation(value, categoryId)}
-                    onClick={handleClick}
-                >
-                    <strong className={classes.value}>{value}</strong>
-                    <span>{` in ${label}`}</span>
-                </Link>
+                <SuggestedCategory
+                    categoryId={categoryId}
+                    label={label}
+                    onNavigate={onNavigate}
+                    value={value}
+                />
             </li>
         ));
 
@@ -44,14 +35,12 @@ SuggestedCategories.propTypes = {
     categories: arrayOf(
         shape({
             label: string.isRequired,
-            value_string: string.isRequired
+            value: string.isRequired
         })
     ).isRequired,
     classes: shape({
         item: string,
-        link: string,
-        root: string,
-        value: string
+        root: string
     }),
     limit: number.isRequired,
     onNavigate: func,

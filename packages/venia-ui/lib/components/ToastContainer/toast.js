@@ -1,7 +1,7 @@
 import React from 'react';
 import { bool, func, number, object, oneOf, string } from 'prop-types';
-import defaultClasses from './toast.css';
-import { mergeClasses } from '../../classify';
+import defaultClasses from './toast.module.css';
+import { useStyle } from '../../classify';
 import Icon from '../Icon';
 
 import { X as CloseIcon } from 'react-feather';
@@ -19,7 +19,7 @@ const Toast = props => {
         type
     } = props;
 
-    const classes = mergeClasses(defaultClasses, {});
+    const classes = useStyle(defaultClasses, {});
 
     const iconElement = icon ? <>{icon}</> : null;
 
@@ -39,9 +39,11 @@ const Toast = props => {
     ) : null;
 
     return (
-        <div className={classes[`${type}Toast`]}>
+        <div className={classes[`${type}Toast`]} data-cy="Toast-root">
             <span className={classes.icon}>{iconElement}</span>
-            <div className={classes.message}>{message}</div>
+            <div className={classes.message} data-cy="Toast-message">
+                {message}
+            </div>
             <div className={classes.controls}>{controls}</div>
             {actions}
         </div>
@@ -58,7 +60,7 @@ Toast.propTypes = {
     onDismiss: func,
     handleAction: func,
     handleDismiss: func,
-    type: oneOf(['info', 'warning', 'error']).isRequired
+    type: oneOf(['info', 'warning', 'error', 'success']).isRequired
 };
 
 export default Toast;

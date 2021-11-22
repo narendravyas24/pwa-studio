@@ -1,11 +1,53 @@
 import React from 'react';
-import { act } from 'react-test-renderer';
 import { Form } from 'informed';
 import { createTestInstance } from '@magento/peregrine';
 
 import CreateAccount from '../createAccount';
 
+jest.mock('@apollo/client', () => ({
+    gql: jest.fn(),
+    useApolloClient: jest.fn().mockImplementation(() => {}),
+    useMutation: jest.fn().mockImplementation(() => [
+        jest.fn(),
+        {
+            error: null
+        }
+    ])
+}));
+
 jest.mock('../../../util/formValidators');
+jest.mock('@magento/peregrine/lib/context/user', () => {
+    const userState = {
+        isGettingDetails: false
+    };
+    const userApi = {
+        getUserDetails: jest.fn(),
+        setToken: jest.fn()
+    };
+    const useUserContext = jest.fn(() => [userState, userApi]);
+
+    return { useUserContext };
+});
+
+jest.mock('@magento/peregrine/lib/context/cart', () => {
+    const state = {};
+    const api = {
+        createCart: jest.fn(),
+        getCartDetails: jest.fn(),
+        removeCart: jest.fn()
+    };
+    const useCartContext = jest.fn(() => [state, api]);
+
+    return { useCartContext };
+});
+
+jest.mock('@magento/peregrine/lib/hooks/useAwaitQuery', () => {
+    const useAwaitQuery = jest
+        .fn()
+        .mockResolvedValue({ data: { customer: {} } });
+
+    return { useAwaitQuery };
+});
 
 const props = {
     onSubmit: jest.fn()
@@ -17,36 +59,18 @@ test('renders the correct tree', () => {
     expect(tree).toMatchSnapshot();
 });
 
-test('has a submit handler', () => {
-    const { root } = createTestInstance(<CreateAccount {...props} />);
-
-    const { instance } = root.children[0];
-
-    expect(instance.handleSubmit).toBeInstanceOf(Function);
-});
-
 test('attaches the submit handler', () => {
     const { root } = createTestInstance(<CreateAccount {...props} />);
 
-    const { instance } = root.children[0];
     const { onSubmit } = root.findByType(Form).props;
 
-    expect(onSubmit).toBe(instance.handleSubmit);
+    expect(typeof onSubmit).toBe('function');
 });
 
-test('calls onSubmit if validation passes', async () => {
-    const { root } = createTestInstance(<CreateAccount {...props} />);
+test('should not render cancel button if isCancelButtonHidden is true', () => {
+    const tree = createTestInstance(
+        <CreateAccount {...props} isCancelButtonHidden={true} />
+    ).toJSON();
 
-    const form = root.findByType(Form);
-    const { formApi } = form.instance;
-
-    // touch fields, call validators, call onSubmit
-    await act(() => {
-        formApi.submitForm();
-    });
-
-    const { errors } = root.findByType(Form).instance.controller.state;
-
-    expect(Object.keys(errors)).toHaveLength(0);
-    expect(props.onSubmit).toHaveBeenCalledTimes(1);
+    expect(tree).toMatchSnapshot();
 });

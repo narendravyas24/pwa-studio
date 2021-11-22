@@ -1,153 +1,183 @@
-import React, { Component } from 'react';
-import { Redirect } from '@magento/venia-drivers';
-import { func, shape, string } from 'prop-types';
+import React from 'react';
+import { FormattedMessage, useIntl } from 'react-intl';
 import { Form } from 'informed';
+import { func, shape, string, bool } from 'prop-types';
+import { useCreateAccount } from '@magento/peregrine/lib/talons/CreateAccount/useCreateAccount';
 
-import classify from '../../classify';
+import { useStyle } from '../../classify';
+import combine from '../../util/combineValidators';
+import {
+    hasLengthAtLeast,
+    isRequired,
+    validatePassword
+} from '../../util/formValidators';
 import Button from '../Button';
 import Checkbox from '../Checkbox';
 import Field from '../Field';
 import TextInput from '../TextInput';
-import combine from '../../util/combineValidators';
-import {
-    validateEmail,
-    isRequired,
-    validatePassword,
-    validateConfirmPassword,
-    hasLengthAtLeast
-} from '../../util/formValidators';
-import defaultClasses from './createAccount.css';
+import defaultClasses from './createAccount.module.css';
+import FormError from '../FormError';
+import Password from '../Password';
 
-const LEAD =
-    'Check out faster, use multiple addresses, track orders and more by creating an account!';
+const CreateAccount = props => {
+    const talonProps = useCreateAccount({
+        initialValues: props.initialValues,
+        onSubmit: props.onSubmit,
+        onCancel: props.onCancel
+    });
 
-class CreateAccount extends Component {
-    static propTypes = {
-        classes: shape({
-            actions: string,
-            error: string,
-            lead: string,
-            root: string,
-            subscribe: string
-        }),
-        onSubmit: func.isRequired,
-        createAccountError: shape({
-            message: string
-        }),
-        initialValues: shape({
-            email: string,
-            firstName: string,
-            lastName: string
-        })
-    };
+    const {
+        errors,
+        handleCancel,
+        handleSubmit,
+        isDisabled,
+        initialValues
+    } = talonProps;
+    const { formatMessage } = useIntl();
+    const classes = useStyle(defaultClasses, props.classes);
 
-    static defaultProps = {
-        initialValues: {}
-    };
+    const cancelButton = props.isCancelButtonHidden ? null : (
+        <Button
+            className={classes.cancelButton}
+            disabled={isDisabled}
+            type="button"
+            priority="low"
+            onClick={handleCancel}
+        >
+            <FormattedMessage
+                id={'createAccount.cancelText'}
+                defaultMessage={'Cancel'}
+            />
+        </Button>
+    );
 
-    get errorMessage() {
-        const { createAccountError } = this.props;
+    const submitButton = (
+        <Button
+            className={classes.submitButton}
+            disabled={isDisabled}
+            type="submit"
+            priority="high"
+        >
+            <FormattedMessage
+                id={'createAccount.createAccountText'}
+                defaultMessage={'Create an Account'}
+            />
+        </Button>
+    );
 
-        if (createAccountError) {
-            const errorIsEmpty = Object.keys(createAccountError).length === 0;
-            if (!errorIsEmpty) {
-                return 'An error occurred. Please try again.';
-            }
-        }
-    }
-
-    get initialValues() {
-        const { initialValues } = this.props;
-        const { email, firstName, lastName, ...rest } = initialValues;
-
-        return {
-            customer: { email, firstname: firstName, lastname: lastName },
-            ...rest
-        };
-    }
-
-    handleSubmit = values => {
-        const { onSubmit } = this.props;
-        onSubmit(values);
-    };
-
-    render() {
-        const { errorMessage, handleSubmit, initialValues, props } = this;
-        const { classes, isSignedIn } = props;
-        if (isSignedIn) {
-            return <Redirect to="/" />;
-        }
-
-        return (
-            <Form
-                className={classes.root}
-                initialValues={initialValues}
-                onSubmit={handleSubmit}
+    return (
+        <Form
+            className={classes.root}
+            initialValues={initialValues}
+            onSubmit={handleSubmit}
+        >
+            <h2 className={classes.title}>
+                <FormattedMessage
+                    id={'createAccount.createAccountText'}
+                    defaultMessage={'Create an Account'}
+                />
+            </h2>
+            <FormError errors={Array.from(errors.values())} />
+            <Field
+                label={formatMessage({
+                    id: 'createAccount.firstNameText',
+                    defaultMessage: 'First Name'
+                })}
             >
-                <p className={classes.lead}>{LEAD}</p>
-                <Field label="First Name" required={true}>
-                    <TextInput
-                        field="customer.firstname"
-                        autoComplete="given-name"
-                        validate={isRequired}
-                        validateOnBlur
-                    />
-                </Field>
-                <Field label="Last Name" required={true}>
-                    <TextInput
-                        field="customer.lastname"
-                        autoComplete="family-name"
-                        validate={isRequired}
-                        validateOnBlur
-                    />
-                </Field>
-                <Field label="Email" required={true}>
-                    <TextInput
-                        field="customer.email"
-                        autoComplete="email"
-                        validate={combine([isRequired, validateEmail])}
-                        validateOnBlur
-                    />
-                </Field>
-                <Field label="Password" required={true}>
-                    <TextInput
-                        field="password"
-                        type="password"
-                        autoComplete="new-password"
-                        validate={combine([
-                            isRequired,
-                            [hasLengthAtLeast, 8],
-                            validatePassword
-                        ])}
-                        validateOnBlur
-                    />
-                </Field>
-                <Field label="Confirm Password" required={true}>
-                    <TextInput
-                        field="confirm"
-                        type="password"
-                        validate={combine([
-                            isRequired,
-                            validateConfirmPassword
-                        ])}
-                        validateOnBlur
-                    />
-                </Field>
-                <div className={classes.subscribe}>
-                    <Checkbox
-                        field="subscribe"
-                        label="Subscribe to news and updates"
-                    />
-                </div>
-                <div className={classes.error}>{errorMessage}</div>
-                <div className={classes.actions}>
-                    <Button type="submit" priority="high">
-                        {'Submit'}
-                    </Button>
-                </div>
-            </Form>
-        );
-    }
-}
+                <TextInput
+                    field="customer.firstname"
+                    autoComplete="given-name"
+                    validate={isRequired}
+                    validateOnBlur
+                    mask={value => value && value.trim()}
+                    maskOnBlur={true}
+                />
+            </Field>
+            <Field
+                label={formatMessage({
+                    id: 'createAccount.lastNameText',
+                    defaultMessage: 'Last Name'
+                })}
+            >
+                <TextInput
+                    field="customer.lastname"
+                    autoComplete="family-name"
+                    validate={isRequired}
+                    validateOnBlur
+                    mask={value => value && value.trim()}
+                    maskOnBlur={true}
+                />
+            </Field>
+            <Field
+                label={formatMessage({
+                    id: 'createAccount.emailText',
+                    defaultMessage: 'Email'
+                })}
+            >
+                <TextInput
+                    field="customer.email"
+                    autoComplete="email"
+                    validate={isRequired}
+                    validateOnBlur
+                    mask={value => value && value.trim()}
+                    maskOnBlur={true}
+                />
+            </Field>
+            <Password
+                autoComplete="new-password"
+                fieldName="password"
+                isToggleButtonHidden={false}
+                label={formatMessage({
+                    id: 'createAccount.passwordText',
+                    defaultMessage: 'Password'
+                })}
+                validate={combine([
+                    isRequired,
+                    [hasLengthAtLeast, 8],
+                    validatePassword
+                ])}
+                validateOnBlur
+                mask={value => value && value.trim()}
+                maskOnBlur={true}
+            />
+            <div className={classes.subscribe}>
+                <Checkbox
+                    field="subscribe"
+                    id="subscribe"
+                    label={formatMessage({
+                        id: 'createAccount.subscribeText',
+                        defaultMessage: 'Subscribe to news and updates'
+                    })}
+                />
+            </div>
+            <div className={classes.actions}>
+                {submitButton}
+                {cancelButton}
+            </div>
+        </Form>
+    );
+};
 
-export default classify(defaultClasses)(CreateAccount);
+CreateAccount.propTypes = {
+    classes: shape({
+        actions: string,
+        lead: string,
+        root: string,
+        subscribe: string
+    }),
+    initialValues: shape({
+        email: string,
+        firstName: string,
+        lastName: string
+    }),
+    isCancelButtonHidden: bool,
+    onSubmit: func,
+    onCancel: func
+};
+
+CreateAccount.defaultProps = {
+    onCancel: () => {},
+    isCancelButtonHidden: true
+};
+
+export default CreateAccount;

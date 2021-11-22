@@ -1,20 +1,19 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { func, number, shape, string } from 'prop-types';
+import { useCategoryBranch } from '@magento/peregrine/lib/talons/CategoryTree';
 
-import { mergeClasses } from '../../classify';
-import defaultClasses from './categoryBranch.css';
+import { useStyle } from '../../classify';
+import defaultClasses from './categoryBranch.module.css';
 
 const Branch = props => {
     const { category, setCategoryId } = props;
-    const { id, include_in_menu, name } = category;
-    const classes = mergeClasses(defaultClasses, props.classes);
+    const { name } = category;
+    const classes = useStyle(defaultClasses, props.classes);
 
-    const handleClick = useCallback(() => {
-        setCategoryId(id);
-    }, [id, setCategoryId]);
+    const talonProps = useCategoryBranch({ category, setCategoryId });
+    const { exclude, handleClick } = talonProps;
 
-    // `include_in_menu` is undefined when Magento <= 2.3.1
-    if (include_in_menu === 0) {
+    if (exclude) {
         return null;
     }
 
@@ -22,6 +21,7 @@ const Branch = props => {
         <li className={classes.root}>
             <button
                 className={classes.target}
+                data-cy="CategoryTree-Branch-target"
                 type="button"
                 onClick={handleClick}
             >

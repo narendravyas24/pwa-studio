@@ -18,7 +18,7 @@ const mockSubmitShippingMethod = jest.fn();
 const mockSubmitPaymentMethodAndBillingAddress = jest.fn();
 
 const defaultProps = {
-    directory: {},
+    checkout: {},
     setEditing: mockSetEditing,
     submitShippingAddress: mockSubmitShippingAddress,
     submitShippingMethod: mockSubmitShippingMethod,
@@ -68,24 +68,6 @@ test('renders an ShippingForm component if editing shippingMethod', () => {
     expect(component.toJSON()).toMatchSnapshot();
 });
 
-test('submit address form calls action with type and values', () => {
-    const props = {
-        ...defaultProps,
-        editing: 'address'
-    };
-    const component = createTestInstance(<EditableForm {...props} />);
-    const formValues = {
-        foo: 'bar'
-    };
-    act(() => {
-        component.root.findByType(AddressForm).props.submit(formValues);
-    });
-
-    expect(mockSubmitShippingAddress).toHaveBeenCalledWith({
-        formValues
-    });
-});
-
 test('submit payments form calls action with type and values', () => {
     const props = {
         ...defaultProps,
@@ -97,7 +79,7 @@ test('submit payments form calls action with type and values', () => {
     };
 
     act(() => {
-        component.root.findByType(PaymentsForm).props.submit(formValues);
+        component.root.findByType(PaymentsForm).props.onSubmit(formValues);
     });
 
     expect(mockSubmitPaymentMethodAndBillingAddress).toHaveBeenCalledWith({
@@ -116,7 +98,7 @@ test('submit shipping form calls action with type and values', () => {
     };
 
     act(() => {
-        component.root.findByType(ShippingForm).props.submit(formValues);
+        component.root.findByType(ShippingForm).props.onSubmit(formValues);
     });
 
     expect(mockSubmitShippingMethod).toHaveBeenCalledWith({

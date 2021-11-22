@@ -1,6 +1,10 @@
 ---
 title: Modular components
+adobeio: /guides/packages/venia/driver-adapter/
 ---
+
+{:.bs-callout .bs-callout-warning}
+This topic is subject to change as the progress of venia-ui implementation need to be updated!
 
 The Venia storefront is a [React][] application composed of multiple React components.
 Some of these components come from third-party dependencies, and
@@ -12,6 +16,16 @@ This lets you leverage Venia functionality in your own PWA projects.
 ## Prerequisites
 
 -   Node >=10.14.1
+
+### Node 12 deprecation warning
+
+If you are using Node 12, you may see the following deprecation warning in the log when you run `yarn watch:venia`.
+
+```sh
+(node:89176) [DEP0066] DeprecationWarning: OutgoingMessage.prototype._headers is deprecated
+```
+
+This is caused by a project dependency used by PWA Studio and not by PWA Studio itself.
 
 ## Install package dependency
 
@@ -52,7 +66,7 @@ Import and use the [Venia Adapter][] in your project if your storefront already 
 import VeniaAdapter from '@magento/venia-concept/src/drivers/adapter';
 
 import { createStore } from 'redux';
-import { ApolloClient } from 'apollo-client';
+import { ApolloClient } from '@apollo/client/core';
 
 const myApplicationStore = createStore()
 const myClient = new ApolloClient({ uri: "https://mystore.com/graphql"})
@@ -102,7 +116,6 @@ The default implementation, which is used in the Venia storefront, provides modu
 
 | Module name   | Source             |
 | ------------- | ------------------ |
-| `Query`       | `react-apollo`     |
 | `Link`        | `react-router-dom` |
 | `Redirect`    | `react-router-dom` |
 | `Route`       | `react-router-dom` |
@@ -179,8 +192,8 @@ This means that any module that imports from `src/drivers` will import from `myR
 
 See the [venia-consumer-example][] project to see how a non-Venia application can import and use Venia components using this approach.
 
-[peregrine]: {{site.baseurl}}{%link peregrine/index.md %}
-[peregrine router]: {{site.baseurl}}{%link peregrine/reference/router/index.md %}
+[peregrine]: {%link peregrine/index.md %}
+[peregrine router]: {%link peregrine/reference/router/index.md %}
 
 [react]: https://reactjs.org/
 [venia-consumer-example]: https://github.com/magento-research/venia-consumer-example

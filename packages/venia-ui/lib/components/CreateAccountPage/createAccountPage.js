@@ -1,40 +1,53 @@
-import React, { Component } from 'react';
-import PropTypes from 'prop-types';
-import { withRouter } from '@magento/venia-drivers';
-import { compose } from 'redux';
-import CreateAccountForm from '../CreateAccount';
-import classify from '../../classify';
-import defaultClasses from './createAccountPage.css';
-import { getCreateAccountInitialValues } from './helpers';
+import React from 'react';
+import { shape, string } from 'prop-types';
+import { FormattedMessage, useIntl } from 'react-intl';
 
-class CreateAccountPage extends Component {
-    static propTypes = {
-        createAccount: PropTypes.func,
-        initialValues: PropTypes.shape({}),
-        history: PropTypes.shape({})
-    };
+import { useCreateAccountPage } from '@magento/peregrine/lib/talons/CreateAccountPage/useCreateAccountPage';
+import { useStyle } from '@magento/venia-ui/lib/classify';
+import CreateAccount from '@magento/venia-ui/lib/components/CreateAccount';
+import { StoreTitle } from '@magento/venia-ui/lib/components/Head';
 
-    createAccount = accountInfo => {
-        const { createAccount, history } = this.props;
-        createAccount({ accountInfo, history });
-    };
+import defaultClasses from './createAccountPage.module.css';
 
-    render() {
-        const initialValues = getCreateAccountInitialValues(
-            window.location.search
-        );
-        return (
-            <div className={this.props.classes.container}>
-                <CreateAccountForm
-                    initialValues={initialValues}
-                    onSubmit={this.createAccount}
+const CreateAccountPage = props => {
+    const classes = useStyle(defaultClasses, props.classes);
+    const { createAccountProps } = useCreateAccountPage(props);
+    const { formatMessage } = useIntl();
+
+    return (
+        <div className={classes.root}>
+            <StoreTitle>
+                {formatMessage({
+                    id: 'createAccountPage.title',
+                    defaultMessage: 'Create an Account'
+                })}
+            </StoreTitle>
+            <h1 className={classes.header}>
+                <FormattedMessage
+                    id="createAccountPage.header"
+                    defaultMessage="Create an Account"
                 />
+            </h1>
+            <div className={classes.contentContainer}>
+                <CreateAccount {...createAccountProps} />
             </div>
-        );
-    }
-}
+        </div>
+    );
+};
 
-export default compose(
-    withRouter,
-    classify(defaultClasses)
-)(CreateAccountPage);
+CreateAccountPage.defaultProps = {
+    signedInRedirectUrl: '/order-history',
+    signInPageUrl: '/sign-in'
+};
+
+CreateAccountPage.propTypes = {
+    classes: shape({
+        root: string,
+        header: string,
+        contentContainer: string
+    }),
+    signedInRedirectUrl: string,
+    signInPageUrl: string
+};
+
+export default CreateAccountPage;

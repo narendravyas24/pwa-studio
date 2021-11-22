@@ -1,58 +1,133 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import { gql } from '@apollo/client';
 import { bool, func, shape, string } from 'prop-types';
-import { useFieldState } from 'informed';
-import { useQuery } from '@magento/peregrine';
+import { useAutocomplete } from '@magento/peregrine/lib/talons/SearchBar';
+import { useIntl } from 'react-intl';
 
-import { mergeClasses } from '../../classify';
-import PRODUCT_SEARCH from '../../queries/productSearch.graphql';
+import defaultClasses from './autocomplete.module.css';
+import { useStyle } from '../../classify';
 import Suggestions from './suggestions';
-import defaultClasses from './autocomplete.css';
+
+const GET_AUTOCOMPLETE_RESULTS = gql`
+    query getAutocompleteResults($inputText: String!) {
+        # Limit results to first three.
+        products(search: $inputText, currentPage: 1, pageSize: 3) {
+            aggregations {
+                label
+                count
+                attribute_code
+                options {
+                    label
+                    value
+                }
+            }
+            items {
+                id
+                name
+                small_image {
+                    url
+                }
+                url_key
+                url_suffix
+                price {
+                    regularPrice {
+                        amount {
+                            value
+                            currency
+                        }
+                    }
+                }
+            }
+            page_info {
+                total_pages
+            }
+            total_count
+        }
+    }
+`;
 
 const Autocomplete = props => {
-    const { setVisible, visible } = props;
+    const { setVisible, valid, visible } = props;
+    const talonProps = useAutocomplete({
+        queries: {
+            getAutocompleteResults: GET_AUTOCOMPLETE_RESULTS
+        },
+        valid,
+        visible
+    });
+    const {
+        displayResult,
+        filters,
+        messageType,
+        products,
+        resultCount,
+        value
+    } = talonProps;
 
-    const [queryResult, queryApi] = useQuery(PRODUCT_SEARCH);
-    const { data, error, loading } = queryResult;
-    const { resetState, runQuery, setLoading } = queryApi;
-
-    const { value } = useFieldState('search_query');
-    const valid = value && value.length > 2;
-
-    const classes = mergeClasses(defaultClasses, props.classes);
+    const classes = useStyle(defaultClasses, props.classes);
     const rootClassName = visible ? classes.root_visible : classes.root_hidden;
-    let message = '';
 
-    if (error) {
-        message = 'An error occurred while fetching results.';
-        if (process.env.NODE_ENV !== 'production') {
-            console.error(error);
-        }
-    } else if (loading) {
-        message = 'Fetching results...';
-    } else if (!data) {
-        message = 'Search for a product';
-    } else if (!data.products.items.length) {
-        message = 'No results were found.';
-    } else {
-        message = `${data.products.items.length} items`;
-    }
+    const { formatMessage } = useIntl();
+    const MESSAGES = new Map()
+        .set(
+            'ERROR',
+            formatMessage({
+                id: 'autocomplete.error',
+                defaultMessage: 'An error occurred while fetching results.'
+            })
+        )
+        .set(
+            'LOADING',
+            formatMessage({
+                id: 'autocomplete.loading',
+                defaultMessage: 'Fetching results...'
+            })
+        )
+        .set(
+            'PROMPT',
+            formatMessage({
+                id: 'autocomplete.prompt',
+                defaultMessage: 'Search for a product'
+            })
+        )
+        .set(
+            'EMPTY_RESULT',
+            formatMessage({
+                id: 'autocomplete.emptyResult',
+                defaultMessage: 'No results were found.'
+            })
+        )
+        .set('RESULT_SUMMARY', (_, resultCount) =>
+            formatMessage(
+                {
+                    id: 'autocomplete.resultSummary',
+                    defaultMessage: '{resultCount} items'
+                },
+                { resultCount: resultCount }
+            )
+        )
+        .set(
+            'INVALID_CHARACTER_LENGTH',
+            formatMessage({
+                id: 'autocomplete.invalidCharacterLength',
+                defaultMessage: 'Search term must be at least three characters'
+            })
+        );
 
-    // run the query once on mount, and again whenever state changes
-    useEffect(() => {
-        if (visible && valid) {
-            setLoading(true);
-            runQuery({ variables: { inputText: value } });
-        } else if (!value) {
-            resetState();
-        }
-    }, [resetState, runQuery, setLoading, valid, value, visible]);
+    const messageTpl = MESSAGES.get(messageType);
+    const message =
+        typeof messageTpl === 'function'
+            ? messageTpl`${resultCount}`
+            : messageTpl;
 
     return (
         <div className={rootClassName}>
             <div className={classes.message}>{message}</div>
             <div className={classes.suggestions}>
                 <Suggestions
-                    products={data ? data.products : {}}
+                    displayResult={displayResult}
+                    products={products || {}}
+                    filters={filters}
                     searchValue={value}
                     setVisible={setVisible}
                     visible={visible}

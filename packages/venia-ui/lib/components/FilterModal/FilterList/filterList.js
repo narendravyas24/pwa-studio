@@ -1,112 +1,137 @@
-import React, { Component } from 'react';
-import { compose } from 'redux';
-import { connect } from 'react-redux';
-import PropTypes from 'prop-types';
-import classify from '../../../classify';
-import { withRouter } from 'react-router-dom';
-import defaultClasses from './filterList.css';
-import { List } from '@magento/peregrine';
-import FilterDefault from './filterDefault';
-import Swatch from '../../ProductOptions/swatch';
-import { WithFilterSearch } from '../../FilterModal/FilterSearch';
+import React, { Fragment, useMemo } from 'react';
+import { array, shape, string, func, number } from 'prop-types';
+import { useIntl } from 'react-intl';
+import setValidator from '@magento/peregrine/lib/validators/set';
+import { useFilterList } from '@magento/peregrine/lib/talons/FilterModal';
 
-class FilterList extends Component {
-    static propTypes = {
-        classes: PropTypes.shape({
-            filterItem: PropTypes.string
-        }),
-        chosenOptions: PropTypes.arrayOf(
-            PropTypes.shape({
-                title: PropTypes.string,
-                value: PropTypes.string
-            })
-        ),
-        layoutClass: PropTypes.string,
-        isSwatch: PropTypes.bool,
-        addFilter: PropTypes.func,
-        removeFilter: PropTypes.func,
-        items: PropTypes.array
-    };
+import { useStyle } from '../../../classify';
+import FilterItem from './filterItem';
+import defaultClasses from './filterList.module.css';
 
-    stripHtml = html => html.replace(/(<([^>]+)>)/gi, '');
+const labels = new WeakMap();
 
-    toggleOption = event => {
-        const { removeFilter, addFilter, history } = this.props;
-        const { value, title, dataset } =
-            event.currentTarget || event.srcElement;
-        const { group } = dataset;
-        const item = { title, value, group };
-        this.isOptionActive(item)
-            ? removeFilter(item, history, window.location)
-            : addFilter(item);
-    };
+const FilterList = props => {
+    const {
+        filterApi,
+        filterState,
+        group,
+        itemCountToShow,
+        items,
+        onApply
+    } = props;
+    const classes = useStyle(defaultClasses, props.classes);
+    const talonProps = useFilterList({ filterState, items, itemCountToShow });
+    const { isListExpanded, handleListToggle } = talonProps;
+    const { formatMessage } = useIntl();
 
-    isOptionActive = option =>
-        this.props.chosenOptions.findIndex(
-            item => item.value === option.value && item.name === option.name
-        ) > -1;
+    // memoize item creation
+    // search value is not referenced, so this array is stable
+    const itemElements = useMemo(
+        () =>
+            items.map((item, index) => {
+                const { title, value } = item;
+                const key = `item-${group}-${value}`;
 
-    isFilterSelected = item => {
-        const label = this.stripHtml(item.label);
-        return !!this.props.chosenOptions.find(
-            ({ title, value }) => label === title && item.value_string === value
-        );
-    };
+                if (!isListExpanded && index >= itemCountToShow) {
+                    return null;
+                }
 
-    render() {
-        const { toggleOption, isFilterSelected, stripHtml } = this;
-        const { classes, items, id, layoutClass, isSwatch } = this.props;
+                // create an element for each item
+                const element = (
+                    <li
+                        key={key}
+                        className={classes.item}
+                        data-cy="FilterList-item"
+                    >
+                        <FilterItem
+                            filterApi={filterApi}
+                            filterState={filterState}
+                            group={group}
+                            item={item}
+                            onApply={onApply}
+                        />
+                    </li>
+                );
+
+                // associate each element with its normalized title
+                // titles are not unique, so use the element as the key
+                labels.set(element, title.toUpperCase());
+
+                return element;
+            }),
+        [
+            classes,
+            filterApi,
+            filterState,
+            group,
+            items,
+            isListExpanded,
+            itemCountToShow,
+            onApply
+        ]
+    );
+
+    const showMoreLessItem = useMemo(() => {
+        if (items.length <= itemCountToShow) {
+            return null;
+        }
+
+        const label = isListExpanded
+            ? formatMessage({
+                  id: 'filterList.showLess',
+                  defaultMessage: 'Show Less'
+              })
+            : formatMessage({
+                  id: 'filterList.showMore',
+                  defaultMessage: 'Show More'
+              });
 
         return (
-            <List
-                items={items}
-                getItemKey={({ value_string }) => `item-${id}-${value_string}`}
-                render={props => (
-                    <ul className={layoutClass}>{props.children}</ul>
-                )}
-                renderItem={({ item }) => {
-                    const isActive = isFilterSelected(item);
-
-                    const filterProps = {
-                        item: {
-                            label: stripHtml(item.label),
-                            value_index: item.value_string
-                        },
-                        value: item.value_string,
-                        title: stripHtml(item.label),
-                        'data-group': id,
-                        onClick: toggleOption,
-                        isSelected: isActive
-                    };
-
-                    const filterClass = !isSwatch ? classes.filterItem : null;
-
-                    return (
-                        <li className={filterClass}>
-                            {isSwatch ? (
-                                <Swatch {...filterProps} />
-                            ) : (
-                                <FilterDefault {...filterProps} />
-                            )}
-                        </li>
-                    );
-                }}
-            />
+            <li className={classes.showMoreLessItem}>
+                <button
+                    onClick={handleListToggle}
+                    className={classes.showMoreLessButton}
+                    data-cy="FilterList-showMoreLessButton"
+                >
+                    {label}
+                </button>
+            </li>
         );
-    }
-}
+    }, [
+        isListExpanded,
+        handleListToggle,
+        items,
+        itemCountToShow,
+        formatMessage,
+        classes
+    ]);
 
-const mapStateToProps = ({ catalog }, { id }) => {
-    const { chosenFilterOptions } = catalog;
-
-    return {
-        chosenOptions: chosenFilterOptions[id] || []
-    };
+    return (
+        <Fragment>
+            <ul className={classes.items}>
+                {itemElements}
+                {showMoreLessItem}
+            </ul>
+        </Fragment>
+    );
 };
 
-export default compose(
-    withRouter,
-    classify(defaultClasses),
-    connect(mapStateToProps),
-    WithFilterSearch
-)(FilterList);
+FilterList.defaultProps = {
+    onApply: null,
+    itemCountToShow: 5
+};
+
+FilterList.propTypes = {
+    classes: shape({
+        item: string,
+        items: string
+    }),
+    filterApi: shape({}),
+    filterState: setValidator,
+    group: string,
+    items: array,
+    onApply: func,
+    itemCountToShow: number
+};
+
+export default FilterList;

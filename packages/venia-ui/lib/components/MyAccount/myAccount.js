@@ -1,46 +1,25 @@
-import React, { useCallback } from 'react';
-import { Archive as HistoryIcon, LogOut as SignOutIcon } from 'react-feather';
+import React from 'react';
 import { func, shape, string } from 'prop-types';
 
-import { mergeClasses } from '../../classify';
-import AccountLink from './accountLink';
-import defaultClasses from './myAccount.css';
+import { useMyAccount } from '@magento/peregrine/lib/talons/MyAccount/useMyAccount';
 
-const DEFAULT_TITLE = 'My Account';
-const UNAUTHED_TITLE = 'Signing Out';
-const UNAUTHED_SUBTITLE = 'Please wait...';
-
-const PURCHASE_HISTORY = 'Purchase History';
-const SIGN_OUT = 'Sign Out';
+import { useStyle } from '../../classify';
+import AccountMenuItems from '../AccountMenu/accountMenuItems';
+import defaultClasses from './myAccount.module.css';
 
 const MyAccount = props => {
-    const { signOut, user } = props;
-    const { email, firstname, lastname } = user;
-    const name = `${firstname} ${lastname}`.trim() || DEFAULT_TITLE;
-    const title = email ? name : UNAUTHED_TITLE;
-    const subtitle = email ? email : UNAUTHED_SUBTITLE;
-    const classes = mergeClasses(defaultClasses, props.classes);
+    const { classes: propClasses, onSignOut, onClose } = props;
+    const classes = useStyle(defaultClasses, propClasses);
 
-    const handleSignOut = useCallback(() => {
-        signOut({ history: window.history });
-    }, [signOut]);
+    const talonProps = useMyAccount({
+        onSignOut: onSignOut,
+        onClose: onClose
+    });
+    const { handleSignOut, handleClose } = talonProps;
 
     return (
         <div className={classes.root}>
-            <div className={classes.user}>
-                <h2 className={classes.title}>{title}</h2>
-                <span className={classes.subtitle}>{subtitle}</span>
-            </div>
-            <div className={classes.actions}>
-                <AccountLink>
-                    <HistoryIcon size={18} />
-                    {PURCHASE_HISTORY}
-                </AccountLink>
-                <AccountLink onClick={handleSignOut}>
-                    <SignOutIcon size={18} />
-                    {SIGN_OUT}
-                </AccountLink>
-            </div>
+            <AccountMenuItems onSignOut={handleSignOut} onClose={handleClose} />
         </div>
     );
 };
@@ -55,10 +34,5 @@ MyAccount.propTypes = {
         title: string,
         user: string
     }),
-    signOut: func.isRequired,
-    user: shape({
-        email: string,
-        firstname: string,
-        lastname: string
-    }).isRequired
+    onSignOut: func.isRequired
 };

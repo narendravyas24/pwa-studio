@@ -1,190 +1,238 @@
-import React, { Suspense, useCallback, useState } from 'react';
-import { arrayOf, bool, func, number, shape, string } from 'prop-types';
+import React, { Fragment, Suspense } from 'react';
+import { FormattedMessage, useIntl } from 'react-intl';
+import { arrayOf, bool, number, shape, string } from 'prop-types';
 import { Form } from 'informed';
-import { Price } from '@magento/peregrine';
+import { Info } from 'react-feather';
 
-import defaultClasses from './productFullDetail.css';
-import { mergeClasses } from '../../classify';
+import Price from '@magento/venia-ui/lib/components/Price';
+import { useProductFullDetail } from '@magento/peregrine/lib/talons/ProductFullDetail/useProductFullDetail';
+import { isProductConfigurable } from '@magento/peregrine/lib/util/isProductConfigurable';
 
+import { useStyle } from '../../classify';
+import Breadcrumbs from '../Breadcrumbs';
 import Button from '../Button';
-import { fullPageLoadingIndicator } from '../LoadingIndicator';
 import Carousel from '../ProductImageCarousel';
-import Quantity from '../ProductQuantity';
-import RichText from '../RichText';
+import FormError from '../FormError';
+import { QuantityFields } from '../CartPage/ProductListing/quantity';
+import RichContent from '../RichContent/richContent';
+import { ProductOptionsShimmer } from '../ProductOptions';
+import defaultClasses from './productFullDetail.module.css';
 
-import appendOptionsToPayload from '../../util/appendOptionsToPayload';
-import findMatchingVariant from '../../util/findMatchingProductVariant';
-import isProductConfigurable from '../../util/isProductConfigurable';
-
+const WishlistButton = React.lazy(() => import('../Wishlist/AddToListButton'));
 const Options = React.lazy(() => import('../ProductOptions'));
 
-const INITIAL_OPTION_CODES = new Map();
-const INITIAL_OPTION_SELECTIONS = new Map();
-const INITIAL_QUANTITY = 1;
-
-const deriveOptionCodesFromProduct = product => {
-    // If this is a simple product it has no option codes.
-    if (!isProductConfigurable(product)) {
-        return INITIAL_OPTION_CODES;
-    }
-
-    // Initialize optionCodes based on the options of the product.
-    const initialOptionCodes = new Map();
-    for (const {
-        attribute_id,
-        attribute_code
-    } of product.configurable_options) {
-        initialOptionCodes.set(attribute_id, attribute_code);
-    }
-
-    return initialOptionCodes;
+// Correlate a GQL error message to a field. GQL could return a longer error
+// string but it may contain contextual info such as product id. We can use
+// parts of the string to check for which field to apply the error.
+const ERROR_MESSAGE_TO_FIELD_MAPPING = {
+    'The requested qty is not available': 'quantity',
+    'Product that you are trying to add is not available.': 'quantity',
+    "The product that was requested doesn't exist.": 'quantity'
 };
 
-const getIsMissingOptions = (product, optionSelections) => {
-    // Non-configurable products can't be missing options.
-    if (!isProductConfigurable(product)) {
-        return false;
-    }
-
-    // Configurable products are missing options if we have fewer
-    // option selections than the product has options.
-    const { configurable_options } = product;
-    const numProductOptions = configurable_options.length;
-    const numProductSelections = optionSelections.size;
-
-    return numProductSelections < numProductOptions;
-};
-
-const getMediaGalleryEntries = (product, optionCodes, optionSelections) => {
-    let value = [];
-
-    const { media_gallery_entries, variants } = product;
-    const isConfigurable = isProductConfigurable(product);
-    const optionsSelected = optionSelections.size > 0;
-
-    if (!isConfigurable || !optionsSelected) {
-        value = media_gallery_entries;
-    } else {
-        const item = findMatchingVariant({
-            optionCodes,
-            optionSelections,
-            variants
-        });
-
-        value = item
-            ? [...item.product.media_gallery_entries, ...media_gallery_entries]
-            : media_gallery_entries;
-    }
-
-    const key = value.reduce((fullKey, entry) => {
-        return `${fullKey},${entry.file}`;
-    }, '');
-
-    return { key, value };
+// Field level error messages for rendering.
+const ERROR_FIELD_TO_MESSAGE_MAPPING = {
+    quantity: 'The requested quantity is not available.'
 };
 
 const ProductFullDetail = props => {
-    // Props.
-    const { addToCart, isAddingItem, product } = props;
+    const { product } = props;
 
-    // State.
-    const [quantity, setQuantity] = useState(INITIAL_QUANTITY);
-    const [optionSelections, setOptionSelections] = useState(
-        INITIAL_OPTION_SELECTIONS
-    );
-    const derivedOptionCodes = deriveOptionCodesFromProduct(product);
-    const [optionCodes] = useState(derivedOptionCodes);
+    const talonProps = useProductFullDetail({ product });
 
-    // Members.
-    const { amount: productPrice } = product.price.regularPrice;
-    const classes = mergeClasses(defaultClasses, props.classes);
-    const isMissingOptions = getIsMissingOptions(product, optionSelections);
-    const mediaGalleryEntries = getMediaGalleryEntries(
-        product,
-        optionCodes,
-        optionSelections
-    );
+    const {
+        breadcrumbCategoryId,
+        errorMessage,
+        handleAddToCart,
+        handleSelectionChange,
+        isOutOfStock,
+        isAddToCartDisabled,
+        isSupportedProductType,
+        mediaGalleryEntries,
+        productDetails,
+        wishlistButtonProps
+    } = talonProps;
+    const { formatMessage } = useIntl();
 
-    // Event handlers.
-    const handleAddToCart = useCallback(() => {
-        const payload = {
-            item: product,
-            productType: product.__typename,
-            quantity
-        };
+    const classes = useStyle(defaultClasses, props.classes);
 
-        if (isProductConfigurable(product)) {
-            appendOptionsToPayload(payload, optionSelections, optionCodes);
+    const options = isProductConfigurable(product) ? (
+        <Suspense fallback={<ProductOptionsShimmer />}>
+            <Options
+                onSelectionChange={handleSelectionChange}
+                options={product.configurable_options}
+            />
+        </Suspense>
+    ) : null;
+
+    const breadcrumbs = breadcrumbCategoryId ? (
+        <Breadcrumbs
+            categoryId={breadcrumbCategoryId}
+            currentProduct={productDetails.name}
+        />
+    ) : null;
+
+    // Fill a map with field/section -> error.
+    const errors = new Map();
+    if (errorMessage) {
+        Object.keys(ERROR_MESSAGE_TO_FIELD_MAPPING).forEach(key => {
+            if (errorMessage.includes(key)) {
+                const target = ERROR_MESSAGE_TO_FIELD_MAPPING[key];
+                const message = ERROR_FIELD_TO_MESSAGE_MAPPING[target];
+                errors.set(target, message);
+            }
+        });
+
+        // Handle cases where a user token is invalid or expired. Preferably
+        // this would be handled elsewhere with an error code and not a string.
+        if (errorMessage.includes('The current user cannot')) {
+            errors.set('form', [
+                new Error(
+                    formatMessage({
+                        id: 'productFullDetail.errorToken',
+                        defaultMessage:
+                            'There was a problem with your cart. Please sign in again and try adding the item once more.'
+                    })
+                )
+            ]);
         }
 
-        addToCart(payload);
-    }, [addToCart, optionCodes, optionSelections, product, quantity]);
+        // Handle cases where a cart wasn't created properly.
+        if (
+            errorMessage.includes('Variable "$cartId" got invalid value null')
+        ) {
+            errors.set('form', [
+                new Error(
+                    formatMessage({
+                        id: 'productFullDetail.errorCart',
+                        defaultMessage:
+                            'There was a problem with your cart. Please refresh the page and try adding the item once more.'
+                    })
+                )
+            ]);
+        }
 
-    const handleSelectionChange = useCallback(
-        (optionId, selection) => {
-            // We must create a new Map here so that React knows that the value
-            // of optionSelections has changed.
-            const newOptionSelections = new Map([...optionSelections]);
-            newOptionSelections.set(optionId, Array.from(selection).pop());
-            setOptionSelections(newOptionSelections);
-        },
-        [optionSelections]
+        // An unknown error should still present a readable message.
+        if (!errors.size) {
+            errors.set('form', [
+                new Error(
+                    formatMessage({
+                        id: 'productFullDetail.errorUnknown',
+                        defaultMessage:
+                            'Could not add item to cart. Please check required options and try again.'
+                    })
+                )
+            ]);
+        }
+    }
+
+    const cartCallToActionText = !isOutOfStock ? (
+        <FormattedMessage
+            id="productFullDetail.addItemToCart"
+            defaultMessage="Add to Cart"
+        />
+    ) : (
+        <FormattedMessage
+            id="productFullDetail.itemOutOfStock"
+            defaultMessage="Out of Stock"
+        />
+    );
+
+    const cartActionContent = isSupportedProductType ? (
+        <Button
+            data-cy="ProductFullDetail-addToCartButton"
+            disabled={isAddToCartDisabled}
+            priority="high"
+            type="submit"
+        >
+            {cartCallToActionText}
+        </Button>
+    ) : (
+        <div className={classes.unavailableContainer}>
+            <Info />
+            <p>
+                <FormattedMessage
+                    id={'productFullDetail.unavailableProduct'}
+                    defaultMessage={
+                        'This product is currently unavailable for purchase.'
+                    }
+                />
+            </p>
+        </div>
     );
 
     return (
-        <Form className={classes.root}>
-            <section className={classes.title}>
-                <h1 className={classes.productName}>{product.name}</h1>
-                <p className={classes.productPrice}>
-                    <Price
-                        currencyCode={productPrice.currency}
-                        value={productPrice.value}
-                    />
-                </p>
-            </section>
-            <section className={classes.imageCarousel}>
-                <Carousel
-                    images={mediaGalleryEntries.value}
-                    key={mediaGalleryEntries.key}
+        <Fragment>
+            {breadcrumbs}
+            <Form
+                className={classes.root}
+                data-cy="ProductFullDetail-root"
+                onSubmit={handleAddToCart}
+            >
+                <section className={classes.title}>
+                    <h1 className={classes.productName}>
+                        {productDetails.name}
+                    </h1>
+                    <p className={classes.productPrice}>
+                        <Price
+                            currencyCode={productDetails.price.currency}
+                            value={productDetails.price.value}
+                        />
+                    </p>
+                </section>
+                <section className={classes.imageCarousel}>
+                    <Carousel images={mediaGalleryEntries} />
+                </section>
+                <FormError
+                    classes={{
+                        root: classes.formErrors
+                    }}
+                    errors={errors.get('form') || []}
                 />
-            </section>
-            <section className={classes.options}>
-                <Suspense fallback={fullPageLoadingIndicator}>
-                    <Options
-                        onSelectionChange={handleSelectionChange}
-                        product={product}
+                <section className={classes.options}>{options}</section>
+                <section className={classes.quantity}>
+                    <span className={classes.quantityTitle}>
+                        <FormattedMessage
+                            id={'global.quantity'}
+                            defaultMessage={'Quantity'}
+                        />
+                    </span>
+                    <QuantityFields
+                        classes={{ root: classes.quantityRoot }}
+                        min={1}
+                        message={errors.get('quantity')}
                     />
-                </Suspense>
-            </section>
-            <section className={classes.quantity}>
-                <h2 className={classes.quantityTitle}>Quantity</h2>
-                <Quantity initialValue={quantity} onValueChange={setQuantity} />
-            </section>
-            <section className={classes.cartActions}>
-                <Button
-                    priority="high"
-                    onClick={handleAddToCart}
-                    disabled={isAddingItem || isMissingOptions}
-                >
-                    Add to Cart
-                </Button>
-            </section>
-            <section className={classes.description}>
-                <h2 className={classes.descriptionTitle}>
-                    Product Description
-                </h2>
-                <RichText content={product.description} />
-            </section>
-            <section className={classes.details}>
-                <h2 className={classes.detailsTitle}>SKU</h2>
-                <strong>{product.sku}</strong>
-            </section>
-        </Form>
+                </section>
+                <section className={classes.actions}>
+                    {cartActionContent}
+                    <Suspense fallback={null}>
+                        <WishlistButton {...wishlistButtonProps} />
+                    </Suspense>
+                </section>
+                <section className={classes.description}>
+                    <span className={classes.descriptionTitle}>
+                        <FormattedMessage
+                            id={'productFullDetail.productDescription'}
+                            defaultMessage={'Product Description'}
+                        />
+                    </span>
+                    <RichContent html={productDetails.description} />
+                </section>
+                <section className={classes.details}>
+                    <span className={classes.detailsTitle}>
+                        <FormattedMessage
+                            id={'global.sku'}
+                            defaultMessage={'SKU'}
+                        />
+                    </span>
+                    <strong>{productDetails.sku}</strong>
+                </section>
+            </Form>
+        </Fragment>
     );
 };
 
 ProductFullDetail.propTypes = {
-    addToCart: func.isRequired,
     classes: shape({
         cartActions: string,
         description: string,
@@ -198,12 +246,13 @@ ProductFullDetail.propTypes = {
         quantity: string,
         quantityTitle: string,
         root: string,
-        title: string
+        title: string,
+        unavailableContainer: string
     }),
-    isAddingItem: bool,
     product: shape({
         __typename: string,
         id: number,
+        stock_status: string,
         sku: string.isRequired,
         price: shape({
             regularPrice: shape({
@@ -215,6 +264,7 @@ ProductFullDetail.propTypes = {
         }).isRequired,
         media_gallery_entries: arrayOf(
             shape({
+                uid: string,
                 label: string,
                 position: number,
                 disabled: bool,

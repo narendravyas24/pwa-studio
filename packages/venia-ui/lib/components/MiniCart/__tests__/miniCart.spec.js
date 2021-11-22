@@ -1,95 +1,71 @@
 import React from 'react';
-import ShallowRenderer from 'react-test-renderer/shallow';
+import createTestInstance from '@magento/peregrine/lib/util/createTestInstance';
 
 import MiniCart from '../miniCart';
 
-const renderer = new ShallowRenderer();
+jest.mock('../../../classify');
+jest.mock('../../StockStatusMessage', () => props => (
+    <mock-StockStatusMessage {...props} />
+));
+jest.mock('../ProductList', () => () => <mock-ProductList />);
 
-const baseProps = {
-    beginEditItem: jest.fn(),
-    cancelCheckout: jest.fn(),
-    cart: {
-        details: {
-            currency: {
-                quote_currency_code: 'NZD'
-            },
-            items: [
-                {
-                    item_id: 1,
-                    name: 'Unit Test Item',
-                    price: 99,
-                    product_type: 'configurable',
-                    qty: 1,
-                    quote_id: '1234',
-                    sku: 'SKU'
+jest.mock('@magento/peregrine', () => ({
+    Price: jest.fn(props => {
+        const priceString = `$${props.value}`;
+        return <span>{priceString}</span>;
+    }),
+    useScrollLock: jest.fn(),
+    useToasts: jest.fn().mockReturnValue([
+        {},
+        {
+            addToast: jest.fn()
+        }
+    ])
+}));
+
+jest.mock('@magento/peregrine/lib/talons/MiniCart/useMiniCart', () => ({
+    useMiniCart: jest.fn().mockReturnValue({
+        productList: [
+            {
+                product: {
+                    name: 'P1',
+                    thumbnail: {
+                        url: 'www.venia.com/p1'
+                    }
+                },
+                id: 'p1',
+                quantity: 10,
+                configurable_options: [
+                    {
+                        label: 'Color',
+                        value: 'red'
+                    }
+                ],
+                prices: {
+                    price: {
+                        value: 420,
+                        currency: 'USD'
+                    }
                 }
-            ],
-            items_qty: 1
-        },
-        editItem: null,
-        isEditingItem: false,
-        isLoading: false,
-        isUpdatingItem: false,
-        totals: {
-            subtotal: 99
-        }
-    },
-    closeDrawer: jest.fn(),
-    endEditItem: jest.fn(),
-    isCartEmpty: false,
-    isMiniCartMaskOpen: false,
-    isOpen: true,
-    removeItemFromCart: jest.fn(),
-    updateItemInCart: jest.fn()
-};
+            }
+        ],
+        loading: false,
+        errors: null,
+        subTotal: { currency: 'USD', value: 420 },
+        totalQuantity: 10,
+        handleRemoveItem: () => {}
+    })
+}));
 
-test('renders the correct tree', () => {
-    const tree = renderer.render(<MiniCart {...baseProps} />);
-
-    expect(tree).toMatchSnapshot();
-});
-
-test('doesnt render a footer when cart is empty', () => {
+test('it renders correctly', () => {
+    // Arrange.
     const props = {
-        ...baseProps,
-        isCartEmpty: true
+        isOpen: true
     };
 
-    renderer.render(<MiniCart {...props} />);
-    const result = renderer.getRenderOutput();
+    // Act.
+    const instance = createTestInstance(<MiniCart {...props} />);
 
-    const footer = result.props.children[3];
-    expect(footer).toBeNull();
-});
-
-test('doesnt render a footer when cart is editing', () => {
-    const props = {
-        ...baseProps,
-        cart: {
-            ...baseProps.cart,
-            isEditingItem: true
-        }
-    };
-
-    renderer.render(<MiniCart {...props} />);
-    const result = renderer.getRenderOutput();
-
-    const footer = result.props.children[3];
-    expect(footer).toBeNull();
-});
-
-test('doesnt render a footer when cart is loading', () => {
-    const props = {
-        ...baseProps,
-        cart: {
-            ...baseProps.cart,
-            isLoading: true
-        }
-    };
-
-    renderer.render(<MiniCart {...props} />);
-    const result = renderer.getRenderOutput();
-
-    const footer = result.props.children[3];
-    expect(footer).toBeNull();
+    // Assert.
+    expect(instance.toJSON()).toMatchSnapshot();
 });

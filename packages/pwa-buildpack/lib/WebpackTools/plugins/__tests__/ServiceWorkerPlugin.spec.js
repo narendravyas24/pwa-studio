@@ -6,6 +6,14 @@ const WriteFileWebpackPlugin = require('write-file-webpack-plugin');
 
 const ServiceWorkerPlugin = require('../ServiceWorkerPlugin');
 
+const fakeCompiler = { hooks: {} };
+
+beforeEach(() => {
+    WorkboxPlugin.GenerateSW.mockClear();
+    WorkboxPlugin.InjectManifest.mockClear();
+    WriteFileWebpackPlugin.mockClear();
+});
+
 test('throws if options are missing', () => {
     expect(() => new ServiceWorkerPlugin({})).toThrow(
         'mode must be of type string'
@@ -19,15 +27,17 @@ test('throws if options are missing', () => {
 });
 
 test('returns a valid Webpack plugin', () => {
-    expect(
-        new ServiceWorkerPlugin({
-            mode: 'development',
-            runtimeCacheAssetPath: 'https://location/of/assets',
-            paths: {
-                output: 'path/to/assets'
-            }
-        })
-    ).toHaveProperty('apply', expect.any(Function));
+    const plugin = new ServiceWorkerPlugin({
+        mode: 'development',
+        runtimeCacheAssetPath: 'https://location/of/assets',
+        paths: {
+            output: 'path/to/assets'
+        }
+    });
+
+    plugin.apply(fakeCompiler);
+
+    expect(plugin).toHaveProperty('apply', expect.any(Function));
 });
 
 test('.apply calls WorkboxPlugin.GenerateSW in prod', () => {
@@ -39,7 +49,7 @@ test('.apply calls WorkboxPlugin.GenerateSW in prod', () => {
         }
     });
     const workboxApply = jest.fn();
-    const fakeCompiler = {};
+
     WorkboxPlugin.GenerateSW.mockImplementationOnce(() => ({
         apply: workboxApply
     }));
@@ -67,16 +77,15 @@ test('.apply calls nothing but warns in console in dev', () => {
     });
     jest.spyOn(console, 'warn').mockImplementationOnce(() => {});
 
-    plugin.apply({});
-
-    expect(WriteFileWebpackPlugin).not.toHaveBeenCalled();
-    expect(WorkboxPlugin.GenerateSW).not.toHaveBeenCalled();
+    plugin.apply(fakeCompiler);
 
     expect(console.warn).toHaveBeenCalledWith(
         expect.stringContaining(
             `Emitting no ServiceWorker in development mode.`
         )
     );
+    expect(WriteFileWebpackPlugin).not.toHaveBeenCalled();
+    expect(WorkboxPlugin.GenerateSW).not.toHaveBeenCalled();
 
     console.warn.mockRestore();
 });
@@ -91,9 +100,9 @@ test('.apply generates and writes out a serviceworker when enableServiceWorkerDe
         }
     });
 
-    const fakeCompiler = {};
     const workboxApply = jest.fn();
     const writeFileApply = jest.fn();
+
     WorkboxPlugin.GenerateSW.mockImplementationOnce(() => ({
         apply: workboxApply
     }));
@@ -128,7 +137,7 @@ test('.apply uses `InjectManifest` when `injectManifest` is `true`', () => {
         swDest: 'path/to/dest'
     };
     const plugin = new ServiceWorkerPlugin({
-        mode: 'development',
+        mode: 'production',
         enableServiceWorkerDebugging: true,
         injectManifest: true,
         paths: {
@@ -137,8 +146,8 @@ test('.apply uses `InjectManifest` when `injectManifest` is `true`', () => {
         injectManifestConfig
     });
 
-    const fakeCompiler = {};
     const workboxApply = jest.fn();
+
     WorkboxPlugin.InjectManifest.mockImplementationOnce(() => ({
         apply: workboxApply
     }));

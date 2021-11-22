@@ -6,11 +6,12 @@ const { promisify } = require('util');
 const jsYaml = require('js-yaml');
 
 /**
- * @description webpack plugin that merged UPWARD configurations and
+ * @description webpack plugin that merges UPWARD configurations and
  * autodetects file assets relied on by those configurations
  */
 class UpwardIncludePlugin {
-    constructor({ upwardDirs }) {
+    constructor({ bus, upwardDirs }) {
+        this.bus = bus;
         this.upwardDirs = upwardDirs;
         this.definition = {};
         debug('created with dirs: %s', upwardDirs);
@@ -28,23 +29,26 @@ class UpwardIncludePlugin {
     }
     async onRun() {
         const { context } = this.compiler.options;
-        this.assetMap = {
-            'upward.yml': {
+        this.addAsset('upward.yaml', {
+            ref: 'upward.yml',
+            mapping: {
                 context,
                 from: './upward.yml',
                 to: './upward.yml',
-                transform: () => jsYaml.safeDump(this.definition)
+                transform: async () => {
+                    await this.bus
+                        .getTargetsOf('@magento/pwa-buildpack')
+                        .transformUpward.promise(this.definition);
+                    return jsYaml.safeDump(this.definition);
+                }
             }
-        };
-        this.dirs = new Set([...this.upwardDirs, context]);
-        const definitions = await Promise.all(
-            Array.from(this.dirs, async dir => {
-                const definition = await this.readUpwardFile(dir);
-                await this.populateAssetMap(dir, definition);
-                return definition;
-            })
-        );
+        });
+        const directories = [...this.upwardDirs, context];
+        this.dirs = new Set(directories);
+        const definitions = await this.getDefinitions(directories);
         Object.assign(this.definition, ...definitions);
+        await this.generateAssetMap();
+
         debug('assigned %s definitions', Object.keys(this.definition));
 
         debug('assets collection complete, %O', this.assetMap);
@@ -54,30 +58,64 @@ class UpwardIncludePlugin {
             logLevel: 'error'
         }).apply(this.compiler);
     }
+    async getDefinitions(directories, definitions = []) {
+        const dir = directories.shift();
+        const definition = await this.readUpwardFile(dir);
+        await this.populateAssetMap(dir, definition);
+        definitions.push(definition);
+
+        if (directories.length > 0) {
+            return this.getDefinitions(directories, definitions);
+        }
+
+        return definitions;
+    }
+    addAsset(configPath, refMap) {
+        this.tempAssetMap = this.tempAssetMap || {};
+        this.tempAssetMap[configPath] = refMap;
+    }
+    async generateAssetMap() {
+        this.assetMap = Object.fromEntries(
+            Object.values(this.tempAssetMap).map(({ ref, mapping }) => {
+                return [ref, mapping];
+            })
+        );
+    }
     extractFileRefs(definition) {
-        const refs = [];
-        walkObject(definition, ({ value, isLeaf }) => {
+        const refs = {};
+        walkObject(definition, ({ value, isLeaf, location }) => {
             if (isLeaf) {
-                if (typeof value === 'string' && value.startsWith('./')) {
+                if (
+                    typeof value === 'string' &&
+                    value.startsWith('./') &&
+                    !value.includes('{{')
+                ) {
                     debug('Leaf %s looks like a fs path', value);
-                    refs.push(value);
+                    // Group by full config path so we only use last configs values
+                    refs[location.join('.')] = value;
                 }
             }
         });
-        debug('found %s file refs', refs.length);
+        debug('found %s file refs', Object.values(refs).length);
         return refs;
     }
     async populateAssetMap(dir, definition) {
         await Promise.all(
-            this.extractFileRefs(definition).map(async ref => {
-                const mapping = await this.validateAndAddRef(dir, ref);
-                if (mapping) {
-                    this.assetMap[ref] = mapping;
+            Object.entries(this.extractFileRefs(definition)).map(
+                async entry => {
+                    const [locationKey, ref] = entry;
+                    const mapping = await this.getMapping(dir, ref);
+                    if (mapping) {
+                        this.addAsset(locationKey, {
+                            ref,
+                            mapping
+                        });
+                    }
                 }
-            })
+            )
         );
     }
-    async validateAndAddRef(dir, ref) {
+    async getMapping(dir, ref) {
         const { output, context } = this.compiler.options;
         debug(`parsing ${ref} from ${dir}`);
         const fullTargetPath = path.resolve(context, ref);
@@ -126,15 +164,18 @@ class UpwardIncludePlugin {
         try {
             yamlTxt = await this.fs.readFile(upwardPath);
         } catch (e) {
-            throw new Error(e, `unable to read file ${upwardPath}`);
+            throw new Error(
+                `UpwardIncludePlugin unable to read file ${upwardPath}: ${
+                    e.message
+                }`
+            );
         }
         debug(`read ${upwardPath} file successfully`);
         try {
             definition = await jsYaml.safeLoad(yamlTxt);
         } catch (e) {
             throw new Error(
-                e,
-                `error parsing ${upwardPath} contents: \n\n${yamlTxt}`
+                `UpwardIncludePlugin error parsing ${upwardPath} contents: \n\n${yamlTxt}`
             );
         }
         debug(`parsed ${upwardPath} file successfully: %o`, definition);

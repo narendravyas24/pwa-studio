@@ -1,7 +1,7 @@
 const debug = require('../util/debug').makeFileLogger(__filename);
-const { URL, URLSearchParams } = require('url');
 let cache;
-let expressSharp;
+/** @type {import("hastily")} */
+let hastily;
 let missingDeps = '';
 const markDepInvalid = (dep, e) => {
     missingDeps += `- ${dep}: Reason: ${e.message.split('\n')[0]}\n`;
@@ -12,42 +12,40 @@ try {
     markDepInvalid('apicache', e);
 }
 try {
-    expressSharp = require('@magento/express-sharp');
+    hastily = require('hastily'); // eslint-disable-line
 } catch (e) {
-    markDepInvalid('@magento/express-sharp', e);
+    markDepInvalid('hastily', e);
 }
-/**
- * TODO: Make a better test for this. The logic which determines whether
- * a URL is an image to be optimized should be centralized, ideally in
- * UPWARD, and then used in various places: here, the UPWARD resolution
- * path itself, the `makeURL` function in the client, etc.
- */
-const wantsResizing = req => !!req.query.width;
 
 function addImgOptMiddleware(app, config) {
-    const { backendUrl, cacheExpires, cacheDebug, redisClient } = config;
-    debug(
-        `mounting onboard image optimization middleware express-sharp with backend %s`,
-        backendUrl
-    );
+    const { cacheExpires, cacheDebug, origin } = config;
+    if (origin === 'backend') {
+        debug(
+            `image origin set to "backend", not mounting onboard image optimization middleware`
+        );
+        return;
+    }
+    debug(`mounting onboard image optimization middleware "hastily"`);
 
     let cacheMiddleware;
-    let sharpMiddleware;
+    let imageopto;
     try {
-        cacheMiddleware = cache(cacheExpires, wantsResizing, {
-            debug: cacheDebug,
-            redisClient:
-                redisClient && require('redis').redisClient(redisClient)
-        });
+        cacheMiddleware = cache(
+            cacheExpires,
+            (req, res) =>
+                hastily.hasSupportedExtension(req) && res.statusCode === 200,
+            {
+                debug: cacheDebug,
+                appendKey: req => req.get('accept')
+            }
+        );
     } catch (e) {
         markDepInvalid('apicache', e);
     }
     try {
-        sharpMiddleware = expressSharp({
-            baseHost: backendUrl
-        });
+        imageopto = hastily.imageopto({ force: origin === 'onboard' });
     } catch (e) {
-        markDepInvalid('@magento/express-sharp', e);
+        markDepInvalid('hastily', e);
     }
     if (missingDeps) {
         console.warn(
@@ -59,71 +57,11 @@ If possible, install additional tools to build NodeJS native dependencies:
 https://github.com/nodejs/node-gyp#installation`
         );
     } else {
-        const toExpressSharpUrl = (incomingUrl, incomingQuery) => {
-            const imageUrl = new URL(incomingUrl, backendUrl);
-            debug('imageUrl', imageUrl);
-
-            const optParamNames = ['auto', 'format', 'width', 'height'];
-
-            // Start with the original search params, so
-            // we can preserve any non-imageopt parameters
-            // others might want.
-            const params = new URLSearchParams(imageUrl.search);
-            for (const param of optParamNames) {
-                params.delete(param);
-            }
-            params.set('url', imageUrl.pathname);
-            if (incomingQuery.format === 'pjpg') {
-                params.set('progressive', 'true');
-            }
-            if (incomingQuery.auto === 'webp') {
-                params.set('format', 'webp');
-            }
-
-            const { width, height } = incomingQuery;
-            let rewrittenUrl = `https://0.0.0.0/resize/${width}`;
-
-            // If we received height and width we should force crop since our
-            // implementation of express sharp defaults fit to "outside" if crop
-            // is falsy. `outside` sizes the image, retaining the aspect ratio
-            // but may fall "outside" the desired height or width. `cover`
-            // retains the aspect ratio like `outside` but clips to fit desired
-            // height and width.
-            //   https://github.com/magento-research/express-sharp/blob/develop/lib/transform.js#L23
-            //   https://sharp.pixelplumbing.com/en/stable/api-resize/
-            if (height) {
-                rewrittenUrl += `/${height}`;
-                params.set('crop', true);
-            }
-
-            const rewritten = new URL(rewrittenUrl);
-            rewritten.search = params.toString();
-
-            debug({ rewritten });
-
-            // make relative url
-            const url = rewritten.href.slice(rewritten.origin.length);
-
-            // make new query object for express-sharp to use
-            const query = {};
-            for (const [key, value] of params) {
-                query[key] = value;
-            }
-            debug({ url, query });
-            return { url, query };
-        };
-        const filterAndRewriteSharp = (req, res, next) => {
-            if (wantsResizing(req)) {
-                const { url, query } = toExpressSharpUrl(req.url, req.query);
-                req.url = url;
-                req.query = query;
-                res.set('X-Image-Compressed-By', 'PWA Studio Staging Server');
-                sharpMiddleware(req, res, next);
-            } else {
-                next();
-            }
-        };
-        app.use(cacheMiddleware, filterAndRewriteSharp);
+        app.use(
+            hastily.HASTILY_STREAMABLE_PATH_REGEXP,
+            cacheMiddleware,
+            imageopto
+        );
     }
 }
 

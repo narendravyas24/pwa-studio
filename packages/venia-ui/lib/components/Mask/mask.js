@@ -1,25 +1,23 @@
-import React, { Component } from 'react';
-import PropTypes from 'prop-types';
+import React from 'react';
+import { useStyle } from '../../classify';
+import defaultClasses from './mask.module.css';
 
-import classify from '../../classify';
-import defaultClasses from './mask.css';
+/**
+ * A component that masks content.
+ *
+ * @param {props} props React component props
+ * @param {Object} props.classes - CSS classes to override element styles.
+ * @param {callback} props.dismiss Handler for the onClick() event
+ * @param {callback} props.isActive True if the mask is in an active state. False otherwise.
+ * @returns {React.Element} A React component that will mask content.
+ *
+ */
+const Mask = props => {
+    const { dismiss, isActive, classes: propClasses, ...restProps } = props;
+    const classes = useStyle(defaultClasses, propClasses);
+    const className = isActive ? classes.root_active : classes.root;
 
-class Mask extends Component {
-    static propTypes = {
-        classes: PropTypes.shape({
-            root: PropTypes.string,
-            root_active: PropTypes.string
-        }),
-        dismiss: PropTypes.func,
-        isActive: PropTypes.bool
-    };
+    return <button className={className} onClick={dismiss} {...restProps} />;
+};
 
-    render() {
-        const { classes, dismiss, isActive } = this.props;
-        const className = isActive ? classes.root_active : classes.root;
-
-        return <button className={className} onClick={dismiss} />;
-    }
-}
-
-export default classify(defaultClasses)(Mask);
+export default Mask;

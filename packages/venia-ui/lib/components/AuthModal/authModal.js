@@ -1,58 +1,41 @@
-import React, { useCallback, useContext, useEffect, useState } from 'react';
+import React from 'react';
 import { func, shape, string } from 'prop-types';
+import { useAuthModal } from '@magento/peregrine/lib/talons/AuthModal/useAuthModal';
 
-import { mergeClasses } from '../../classify';
+import { useStyle } from '../../classify';
 import CreateAccount from '../CreateAccount';
 import ForgotPassword from '../ForgotPassword';
 import MyAccount from '../MyAccount';
 import SignIn from '../SignIn';
-import { UserContext } from '../Navigation';
-import defaultClasses from './authModal.css';
-
-const UNAUTHED_ONLY = ['CREATE_ACCOUNT', 'FORGOT_PASSWORD', 'SIGN_IN'];
+import defaultClasses from './authModal.module.css';
 
 const AuthModal = props => {
     const {
-        closeDrawer,
+        handleCancel,
+        handleCreateAccount,
+        handleSignOut,
+        setUsername,
         showCreateAccount,
         showForgotPassword,
-        showMainMenu,
         showMyAccount,
-        view
-    } = props;
+        username
+    } = useAuthModal(props);
 
-    const [username, setUsername] = useState('');
-    const [userState, { createAccount, signOut }] = useContext(UserContext);
-    const { currentUser } = userState;
-    const classes = mergeClasses(defaultClasses, props.classes);
+    const classes = useStyle(defaultClasses, props.classes);
+
     let child = null;
-
-    const resetDrawer = useCallback(() => {
-        showMainMenu();
-        closeDrawer();
-    }, [closeDrawer, showMainMenu]);
-
-    // if the user is authed, the only valid view is "MY_ACCOUNT"
-    useEffect(() => {
-        if (currentUser && currentUser.id && UNAUTHED_ONLY.includes(view)) {
-            showMyAccount();
-        }
-    }, [currentUser, showMyAccount, view]);
-
-    const handleCreateAccount = useCallback(
-        async values => {
-            await createAccount(values);
-            showMyAccount();
-        },
-        [createAccount, showMyAccount]
-    );
-
-    switch (view) {
+    switch (props.view) {
         case 'CREATE_ACCOUNT': {
             child = (
                 <CreateAccount
+                    classes={{
+                        actions: classes.createAccountActions,
+                        submitButton: classes.createAccountSubmitButton
+                    }}
                     initialValues={{ email: username }}
+                    isCancelButtonHidden={false}
                     onSubmit={handleCreateAccount}
+                    onCancel={handleCancel}
                 />
             );
             break;
@@ -61,16 +44,17 @@ const AuthModal = props => {
             child = (
                 <ForgotPassword
                     initialValues={{ email: username }}
-                    onClose={resetDrawer}
+                    onCancel={handleCancel}
                 />
             );
             break;
         }
         case 'MY_ACCOUNT': {
-            child = <MyAccount signOut={signOut} user={currentUser} />;
+            child = <MyAccount onSignOut={handleSignOut} />;
             break;
         }
-        case 'SIGN_IN': {
+        case 'SIGN_IN':
+        default: {
             child = (
                 <SignIn
                     setDefaultUsername={setUsername}
@@ -92,9 +76,11 @@ AuthModal.propTypes = {
     classes: shape({
         root: string
     }),
+    closeDrawer: func.isRequired,
     showCreateAccount: func.isRequired,
     showForgotPassword: func.isRequired,
-    showMainMenu: func.isRequired,
     showMyAccount: func.isRequired,
-    view: string.isRequired
+    showMainMenu: func.isRequired,
+    showSignIn: func.isRequired,
+    view: string
 };

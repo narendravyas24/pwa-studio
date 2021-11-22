@@ -1,47 +1,44 @@
 import React from 'react';
-import waitForExpect from 'wait-for-expect';
-import { MockedProvider } from 'react-apollo/test-utils';
-import TestRenderer from 'react-test-renderer';
+import { MemoryRouter } from 'react-router-dom';
+import { createTestInstance } from '@magento/peregrine';
 
 import Footer from '../footer';
-import storeConfigDataQuery from '../../../queries/getStoreConfigData.graphql';
+
+jest.mock('../../../classify');
+
+jest.mock('@magento/peregrine/lib/talons/Footer/useFooter', () => {
+    const talonProps = { copyrightText: 'foo' };
+    const useFooter = jest.fn(() => talonProps);
+
+    return { useFooter };
+});
+
+jest.mock('@magento/venia-ui/lib/components/Logo', () => {
+    return props => <i {...props} />;
+});
+
+jest.mock('@magento/venia-ui/lib/components/Newsletter', () => {
+    return props => <i {...props} />;
+});
+
+const mockLinkComponent = ({ children }) => {
+    return children;
+};
+
+const links = new Map()
+    .set('ab', [
+        ['a', '/a'],
+        ['b', '/b'],
+        ['comp', { path: '/comp', Component: mockLinkComponent }]
+    ])
+    .set('12', [['1', '/1'], ['2', '/2']]);
 
 test('footer renders copyright', () => {
-    const mocks = [
-        {
-            request: {
-                query: storeConfigDataQuery
-            },
-            result: {
-                data: {
-                    storeConfig: {
-                        id: 1,
-                        copyright: 'Mocked Copyright Text'
-                    }
-                }
-            }
-        }
-    ];
-
-    const classes = {
-        copyright: 'copyright-class',
-        root: 'root-class',
-        tile: 'title-class',
-        tileBody: 'tileBody-class',
-        tileTitle: 'tileTitle-class'
-    };
-
-    const { root } = TestRenderer.create(
-        <MockedProvider mocks={mocks} addTypename={false}>
-            <Footer classes={classes} />
-        </MockedProvider>
+    const instance = createTestInstance(
+        <MemoryRouter>
+            <Footer links={links} />
+        </MemoryRouter>
     );
 
-    const copyright = root.findByProps({ className: classes.copyright });
-
-    waitForExpect(() => {
-        expect(copyright.toString()).toEqual(
-            '<span>Mocked Copyright Text</span>'
-        );
-    });
+    expect(instance.toJSON()).toMatchSnapshot();
 });

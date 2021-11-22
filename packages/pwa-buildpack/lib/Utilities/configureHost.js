@@ -54,6 +54,7 @@ const alreadyProvisioned = hostname => {
 function getCert(hostname) {
     // Manually create a Promise here to obtain a "reject" function in closure,
     // so we can use a setTimeout to reject the promise after 30 seconds.
+    // eslint-disable-next-line no-async-promise-executor
     return new Promise(async (resolve, reject) => {
         const timeout = setTimeout(
             () =>
@@ -196,11 +197,11 @@ function getUniqueDomainAndPorts(directory, customName, addUniqueHash) {
     };
 }
 
-async function configureHost(options = {}) {
+async function configureHost(options) {
     debug('options %o', options);
     const {
         addUniqueHash = true,
-        dir = process.cwd(),
+        dir,
         subdomain,
         exactDomain,
         interactive = true
